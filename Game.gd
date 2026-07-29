@@ -3,6 +3,9 @@ extends Node2D
 const Coin = preload("res://Coin.gd")
 const Enemy = preload("res://Enemy.gd")
 const Player = preload("res://Player.gd")
+const FlyEnemy = preload("res://FlyEnemy.gd")
+const Hazard = preload("res://Hazard.gd")
+const MovingPlatform = preload("res://MovingPlatform.gd")
 
 enum GameState { MENU, PLAYING, WON, GAME_OVER }
 
@@ -48,7 +51,8 @@ func _process(delta):
 		GameState.PLAYING:
 			# 镜头平滑跟随玩家 (使用 lerp 插值，消除原内置 Smoothing 强刷引发的画面抖动/掉帧)
 			if camera and player_node and is_instance_valid(camera) and is_instance_valid(player_node):
-				camera.position = camera.position.lerp(player_node.position, 12.0 * delta)
+				var weight = clamp(12.0 * delta, 0.0, 1.0)
+				camera.position = camera.position.lerp(player_node.position, weight)
 				# 掉落死亡：玩家掉出关卡底部（防物理bug软锁）
 				if player_node.position.y > GROUND_Y + 100:
 					_on_player_hit(player_node)
@@ -334,29 +338,50 @@ func _create_world():
 	grass.position = Vector2(0, GROUND_Y - 2)
 	add_child(grass)
 	
-	# 浮空平台（collision_layer=2 → 只当单向地板，可从下方穿过）
+	# 浮空平台（静态 + 动态移动平台）
 	var platform_data = [
 		[400, 428, 120, 16],
-		[650, 383, 120, 16],
 		[900, 338, 120, 16],
 		[1150, 293, 120, 16],
 		[1400, 248, 120, 16],
 		[300, 488, 100, 16],
 		[750, 458, 100, 16],
-		[1100, 408, 100, 16],
 	]
 	for pd in platform_data:
 		_add_static_rect(pd[0], pd[1], pd[2], pd[3], Color(0.32, 0.2, 0.1), 2)
+		
+	# 动态移动单向平台 (Moving Platforms)
+	var mp1 = MovingPlatform.new()
+	mp1.position = Vector2(650, 380)
+	mp1.move_distance = 110.0
+	mp1.move_speed = 2.0
+	add_child(mp1)
 	
+	var mp2 = MovingPlatform.new()
+	mp2.position = Vector2(1050, 400)
+	mp2.move_distance = 90.0
+	mp2.move_speed = 1.6
+	mp2.is_vertical = true
+	add_child(mp2)
+
+	# 地刺陷阱 (Hazard Spikes)
+	var h1 = Hazard.new()
+	h1.position = Vector2(520, GROUND_Y)
+	add_child(h1)
+	
+	var h2 = Hazard.new()
+	h2.position = Vector2(1020, GROUND_Y)
+	add_child(h2)
+
 	# 金币
 	var coin_positions = [
 		Vector2(200, 410),
 		Vector2(400, 408),
 		Vector2(550, 470),
-		Vector2(650, 363),
+		Vector2(650, 320),
 		Vector2(750, 440),
 		Vector2(900, 318),
-		Vector2(1050, 460),
+		Vector2(1050, 330),
 		Vector2(1100, 388),
 		Vector2(1150, 273),
 		Vector2(1400, 228),
@@ -366,7 +391,7 @@ func _create_world():
 		coin.position = pos
 		add_child(coin)
 	
-	# 敌人
+	# 地面追击敌人 (Ground Chasing Enemies)
 	var e1 = Enemy.new()
 	e1.position = Vector2(300, GROUND_Y - 12)
 	e1.patrol_range = 200
@@ -381,6 +406,17 @@ func _create_world():
 	e3.position = Vector2(1300, GROUND_Y - 12)
 	e3.patrol_range = 180
 	add_child(e3)
+	
+	# 飞行小丑无人机敌人 (Fly Drone Enemies)
+	var fe1 = FlyEnemy.new()
+	fe1.position = Vector2(700, 260)
+	fe1.patrol_range = 140.0
+	add_child(fe1)
+	
+	var fe2 = FlyEnemy.new()
+	fe2.position = Vector2(1250, 210)
+	fe2.patrol_range = 120.0
+	add_child(fe2)
 	
 	_create_finish()
 
@@ -513,7 +549,7 @@ func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(label, "position:y", label.position.y - 35.0, 0.6)
 	tween.tween_property(label, "modulate:a", 0.0, 0.6)
-	tween.chain().tween_callback(func(): label.queue_free())
+	tween.chain().tween_callback(func(): label.hide(); label.queue_free())
 
 # ─── 暂停菜单 ──────────────────────────────────────
 
@@ -593,7 +629,7 @@ func _spawn_particle_burst(world_pos: Vector2, color: Color):
 		var vel = item[1]
 		tween.tween_property(p, "position", vel * 0.35, 0.35)
 		tween.tween_property(p, "modulate:a", 0.0, 0.35)
-	tween.chain().tween_callback(func(): node.queue_free())
+	tween.chain().tween_callback(func(): node.hide(); node.queue_free())
 
 # ─── 游戏事件 ──────────────────────────────────────
 

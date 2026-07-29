@@ -105,4 +105,4 @@ func _collect(body):
 	tween.tween_property(self, "position:y", position.y - 30.0, 0.22)
 	tween.tween_property(self, "scale", Vector2(1.5, 1.5), 0.22)
 	tween.tween_property(self, "modulate:a", 0.0, 0.22)
-	tween.chain().tween_callback(func(): queue_free())
+	tween.chain().tween_callback(func(): hide(); queue_free())

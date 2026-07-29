@@ -1,12 +1,14 @@
 extends Area2D
 
-const SPEED = 70.0
-var patrol_range = 100.0
+const BASE_PATROL_SPEED = 90.0
+const CHASE_SPEED = 140.0  # 加快追击速度
 
+var patrol_range = 100.0
 var direction = -1
 var start_x = 0.0
 var alive = true
 var anim_timer = 0.0
+var player_node = null
 
 const STEPS = 12
 static var UNIT_CIRCLE: PackedVector2Array = []
@@ -71,18 +73,42 @@ func draw_ellipse_fast(pos: Vector2, rx: float, ry: float, color: Color):
 func _physics_process(delta):
 	if not alive:
 		return
-	position.x += SPEED * direction * delta
-	
-	var changed_dir = false
-	if position.x >= start_x + patrol_range:
-		direction = -1
-		changed_dir = true
-	elif position.x <= start_x - patrol_range:
-		direction = 1
-		changed_dir = true
 		
-	if changed_dir:
+	# 寻找玩家节点
+	if not player_node or not is_instance_valid(player_node):
+		var players = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			player_node = players[0]
+			
+	var current_speed = BASE_PATROL_SPEED
+	var new_dir = direction
+	
+	# 智能追踪 AI：当玩家在感知范围内时加速向玩家追击
+	if player_node and is_instance_valid(player_node) and not player_node.is_dead:
+		var dist_x = player_node.position.x - position.x
+		var dist_y = abs(player_node.position.y - position.y)
+		# 侦测范围：水平 450px，垂直 220px
+		if abs(dist_x) < 450.0 and dist_y < 220.0 and abs(dist_x) > 4.0:
+			current_speed = CHASE_SPEED
+			new_dir = 1 if dist_x > 0 else -1
+		else:
+			# 超出追击范围时在初始点附近巡逻
+			if position.x >= start_x + patrol_range:
+				new_dir = -1
+			elif position.x <= start_x - patrol_range:
+				new_dir = 1
+	else:
+		if position.x >= start_x + patrol_range:
+			new_dir = -1
+		elif position.x <= start_x - patrol_range:
+			new_dir = 1
+			
+	if new_dir != direction:
+		direction = new_dir
 		queue_redraw()
+		
+	position.x += current_speed * direction * delta
+	position.x = clamp(position.x, 10.0, 1620.0)
 
 func _on_body_entered(body):
 	if not alive:
@@ -123,4 +149,4 @@ func stomp():
 	tween.tween_property(self, "scale", Vector2(1.4, 0.15), 0.15)
 	tween.tween_property(self, "modulate:a", 0.0, 0.3)
 	tween.tween_property(self, "modulate", Color(0.5, 0.2, 0.05), 0.2)
-	tween.chain().tween_callback(func(): queue_free())
+	tween.chain().tween_callback(func(): hide(); queue_free())

@@ -50,103 +50,110 @@ func _draw():
 	var breath_y = sin(anim_time * 3.5) * 1.0 if (not is_moving and not is_airborne) else 0.0
 	var cape_wave = sin(anim_time * 12.0) * 4.0 if is_moving else sin(anim_time * 2.5) * 1.5
 	
-	# 整体 Y 轴向上向上抬高 9px，确保鞋底正好压在 Y = +18 碰撞底线上，不嵌入地面
-	var torso_y = -7 + breath_y
-	var leg_y = 7 + breath_y
-	var head_y = -16 + breath_y
+	# 整体 Y 轴向上抬高 9px，确保鞋底正好压在 Y = +18 碰撞底线上，不嵌入地面
+	var torso_y = -7.0 + breath_y
+	var leg_y = 7.0 + breath_y
+	var head_y = -16.0 + breath_y
 	
 	# 1. 动态蝙蝠斗篷 (Dynamic Bat Cape)
 	var cape_color = Color(0.06, 0.06, 0.1)
 	var cape_points = PackedVector2Array()
+	var wave_dir = cape_wave * flip
 	
 	if is_airborne:
 		# 空中/跳跃状态：蝙蝠滑翔翼式张开斗篷
 		cape_points = PackedVector2Array([
-			Vector2(-4 * flip, torso_y - 4),
-			Vector2(-26 * flip, torso_y - 6),
-			Vector2(-30 * flip, torso_y + 16),
-			Vector2(-18 * flip, torso_y + 24),
-			Vector2(-6 * flip, torso_y + 18),
-			Vector2(4 * flip, torso_y + 8)
+			Vector2(-4.0 * flip, torso_y - 4.0),
+			Vector2(-26.0 * flip, torso_y - 6.0),
+			Vector2(-30.0 * flip, torso_y + 16.0),
+			Vector2(-18.0 * flip, torso_y + 24.0),
+			Vector2(-6.0 * flip, torso_y + 18.0),
+			Vector2(4.0 * flip, torso_y + 8.0)
 		])
 	elif is_moving:
 		# 奔跑状态：斗篷向后迎风剧烈摆动
 		cape_points = PackedVector2Array([
-			Vector2(-4 * flip, torso_y - 4),
-			Vector2(-20 * flip + cape_wave, torso_y + 4),
-			Vector2(-26 * flip + cape_wave, torso_y + 18 + cape_wave),
-			Vector2(-14 * flip, torso_y + 20),
-			Vector2(-4 * flip, torso_y + 14),
-			Vector2(2 * flip, torso_y + 10)
+			Vector2(-4.0 * flip, torso_y - 4.0),
+			Vector2(-20.0 * flip - wave_dir, torso_y + 4.0),
+			Vector2(-26.0 * flip - wave_dir, torso_y + 18.0 + cape_wave),
+			Vector2(-14.0 * flip, torso_y + 20.0),
+			Vector2(-4.0 * flip, torso_y + 14.0),
+			Vector2(2.0 * flip, torso_y + 10.0)
 		])
 	else:
 		# 待机状态：斗篷顺垂背后微动
 		cape_points = PackedVector2Array([
-			Vector2(-4 * flip, torso_y - 4),
-			Vector2(-14 * flip + cape_wave, torso_y + 6),
-			Vector2(-18 * flip + cape_wave, torso_y + 22),
-			Vector2(-10 * flip, torso_y + 22),
-			Vector2(-4 * flip, torso_y + 14),
-			Vector2(2 * flip, torso_y + 10)
+			Vector2(-4.0 * flip, torso_y - 4.0),
+			Vector2(-14.0 * flip - wave_dir, torso_y + 6.0),
+			Vector2(-18.0 * flip - wave_dir, torso_y + 22.0),
+			Vector2(-10.0 * flip, torso_y + 22.0),
+			Vector2(-4.0 * flip, torso_y + 14.0),
+			Vector2(2.0 * flip, torso_y + 10.0)
 		])
+	
+	# 关键修正：镜像翻转 (flip = -1) 会反转顶点绕行方向 (Winding Order)，
+	# 须将数组反转确保 draw_polygon 接收到的永远是逆时针正向顶点，防止 GPU 产生退化白像素
+	if not facing_right:
+		cape_points.reverse()
 	draw_polygon(cape_points, PackedColorArray([cape_color]))
 	
 	# 2. 腿部与暗影战靴 (Legs & Boots - 鞋底精确压在 Y = +18 碰撞底端)
-	var left_leg_x = -8 + (leg_swing if not is_airborne else 2.0)
-	var right_leg_x = 2 - (leg_swing if not is_airborne else 2.0)
+	var left_leg_x = -8.0 + (leg_swing if not is_airborne else 2.0)
+	var right_leg_x = 2.0 - (leg_swing if not is_airborne else 2.0)
 	
-	draw_rect(Rect2(left_leg_x, leg_y, 6, 8), Color(0.15, 0.16, 0.22))
-	draw_rect(Rect2(right_leg_x, leg_y, 6, 8), Color(0.15, 0.16, 0.22))
+	draw_rect(Rect2(left_leg_x, leg_y, 6.0, 8.0), Color(0.15, 0.16, 0.22))
+	draw_rect(Rect2(right_leg_x, leg_y, 6.0, 8.0), Color(0.15, 0.16, 0.22))
 	
 	var shoe_offset = 1.0 * flip
-	draw_rect(Rect2(left_leg_x - 1 + shoe_offset, leg_y + 6, 7, 5), Color(0.08, 0.08, 0.12))
-	draw_rect(Rect2(right_leg_x - 1 + shoe_offset, leg_y + 6, 7, 5), Color(0.08, 0.08, 0.12))
+	draw_rect(Rect2(left_leg_x - 1.0 + shoe_offset, leg_y + 6.0, 7.0, 5.0), Color(0.08, 0.08, 0.12))
+	draw_rect(Rect2(right_leg_x - 1.0 + shoe_offset, leg_y + 6.0, 7.0, 5.0), Color(0.08, 0.08, 0.12))
 	
 	# 3. 躯干战衣 (Torso Armor)
-	draw_rect(Rect2(-8, torso_y, 16, 14), Color(0.2, 0.22, 0.28))
-	draw_rect(Rect2(-6, torso_y, 12, 12), Color(0.16, 0.18, 0.24))
+	draw_rect(Rect2(-8.0, torso_y, 16.0, 14.0), Color(0.2, 0.22, 0.28))
+	draw_rect(Rect2(-6.0, torso_y, 12.0, 12.0), Color(0.16, 0.18, 0.24))
 	
 	# 4. 黄色蝙蝠图标胸章 (Bat Symbol Emblem)
-	draw_circle(Vector2(0, torso_y + 5), 5.0, Color(1.0, 0.85, 0.1)) # 黄底
+	draw_circle(Vector2(0, torso_y + 5.0), 5.0, Color(1.0, 0.85, 0.1)) # 黄底
 	var bat_wings = PackedVector2Array([
-		Vector2(-4, torso_y + 4), Vector2(-2, torso_y + 3), Vector2(0, torso_y + 5), Vector2(2, torso_y + 3), Vector2(4, torso_y + 4),
-		Vector2(3, torso_y + 6), Vector2(0, torso_y + 7), Vector2(-3, torso_y + 6)
+		Vector2(-4.0, torso_y + 4.0), Vector2(-2.0, torso_y + 3.0), Vector2(0.0, torso_y + 5.0), Vector2(2.0, torso_y + 3.0), Vector2(4.0, torso_y + 4.0),
+		Vector2(3.0, torso_y + 6.0), Vector2(0.0, torso_y + 7.0), Vector2(-3.0, torso_y + 6.0)
 	])
 	draw_polygon(bat_wings, PackedColorArray([Color(0.1, 0.1, 0.14)]))
 	
 	# 5. 金黄色战术腰带 (Yellow Utility Belt)
-	draw_rect(Rect2(-8, torso_y + 11, 16, 3), Color(1.0, 0.8, 0.1))
-	draw_rect(Rect2(-2, torso_y + 10, 4, 5), Color(0.9, 0.7, 0.0)) # 腰带扣
+	draw_rect(Rect2(-8.0, torso_y + 11.0, 16.0, 3.0), Color(1.0, 0.8, 0.1))
+	draw_rect(Rect2(-2.0, torso_y + 10.0, 4.0, 5.0), Color(0.9, 0.7, 0.0)) # 腰带扣
 	
 	# 6. 手臂与护臂刺刺 (Arms & Gauntlets)
 	var arm_swing = -leg_swing * 0.8
-	var left_arm_y = torso_y + 2 + arm_swing
-	var right_arm_y = torso_y + 2 - arm_swing
+	var left_arm_y = torso_y + 2.0 + arm_swing
+	var right_arm_y = torso_y + 2.0 - arm_swing
 	
-	draw_rect(Rect2(-12, left_arm_y, 5, 10), Color(0.16, 0.18, 0.24))
-	draw_rect(Rect2(7, right_arm_y, 5, 10), Color(0.16, 0.18, 0.24))
-	# 护臂利刃突起
-	draw_polygon(PackedVector2Array([Vector2(-12, left_arm_y + 3), Vector2(-15 * flip, left_arm_y + 5), Vector2(-12, left_arm_y + 7)]), PackedColorArray([Color(0.1, 0.1, 0.14)]))
-	draw_polygon(PackedVector2Array([Vector2(12, right_arm_y + 3), Vector2(15 * flip, right_arm_y + 5), Vector2(12, right_arm_y + 7)]), PackedColorArray([Color(0.1, 0.1, 0.14)]))
+	draw_rect(Rect2(-12.0, left_arm_y, 5.0, 10.0), Color(0.16, 0.18, 0.24))
+	draw_rect(Rect2(7.0, right_arm_y, 5.0, 10.0), Color(0.16, 0.18, 0.24))
+	
+	# 修正护臂利刃突起：左侧手臂(x=-12)刺向左(-15)，右侧手臂(x=7)刺向右(+15)，避免乘 flip 导致穿透身体
+	var left_gauntlet = PackedVector2Array([Vector2(-12.0, left_arm_y + 3.0), Vector2(-15.0, left_arm_y + 5.0), Vector2(-12.0, left_arm_y + 7.0)])
+	var right_gauntlet = PackedVector2Array([Vector2(12.0, right_arm_y + 3.0), Vector2(15.0, right_arm_y + 5.0), Vector2(12.0, right_arm_y + 7.0)])
+	draw_polygon(left_gauntlet, PackedColorArray([Color(0.1, 0.1, 0.14)]))
+	draw_polygon(right_gauntlet, PackedColorArray([Color(0.1, 0.1, 0.14)]))
 	
 	# 7. 蝙蝠头盔 (Cowl) & 尖角耳 (Bat Ears)
 	draw_circle(Vector2(0, head_y), 9.0, Color(0.1, 0.1, 0.14))
-	# 左耳
-	var left_ear = PackedVector2Array([Vector2(-8, head_y - 3), Vector2(-4, head_y - 3), Vector2(-7, head_y - 15)])
+	var left_ear = PackedVector2Array([Vector2(-8.0, head_y - 3.0), Vector2(-4.0, head_y - 3.0), Vector2(-7.0, head_y - 15.0)])
 	draw_polygon(left_ear, PackedColorArray([Color(0.1, 0.1, 0.14)]))
-	# 右耳
-	var right_ear = PackedVector2Array([Vector2(4, head_y - 3), Vector2(8, head_y - 3), Vector2(7, head_y - 15)])
+	var right_ear = PackedVector2Array([Vector2(4.0, head_y - 3.0), Vector2(8.0, head_y - 3.0), Vector2(7.0, head_y - 15.0)])
 	draw_polygon(right_ear, PackedColorArray([Color(0.1, 0.1, 0.14)]))
 	
 	# 8. 露脸下巴 (Jaw Cutout)
-	draw_rect(Rect2(-4, head_y + 2, 8, 5), Color(0.95, 0.78, 0.65))
-	draw_line(Vector2(-3, head_y + 5), Vector2(3, head_y + 5), Color(0.4, 0.2, 0.1), 1.5) # 嘴唇
+	draw_rect(Rect2(-4.0, head_y + 2.0, 8.0, 5.0), Color(0.95, 0.78, 0.65))
+	draw_line(Vector2(-3.0, head_y + 5.0), Vector2(3.0, head_y + 5.0), Color(0.4, 0.2, 0.1), 1.5) # 嘴唇
 	
 	# 9. 蝙蝠侠发光白眼 (Glowing White Eyes)
-	var eye_y = head_y - 2
+	var eye_y = head_y - 2.0
 	var eye_offset_x = 2.0 * flip
-	var left_eye = PackedVector2Array([Vector2(-6 + eye_offset_x, eye_y - 1), Vector2(-1 + eye_offset_x, eye_y), Vector2(-5 + eye_offset_x, eye_y + 2)])
-	var right_eye = PackedVector2Array([Vector2(1 + eye_offset_x, eye_y), Vector2(6 + eye_offset_x, eye_y - 1), Vector2(5 + eye_offset_x, eye_y + 2)])
+	var left_eye = PackedVector2Array([Vector2(-6.0 + eye_offset_x, eye_y - 1.0), Vector2(-1.0 + eye_offset_x, eye_y), Vector2(-5.0 + eye_offset_x, eye_y + 2.0)])
+	var right_eye = PackedVector2Array([Vector2(1.0 + eye_offset_x, eye_y), Vector2(6.0 + eye_offset_x, eye_y - 1.0), Vector2(5.0 + eye_offset_x, eye_y + 2.0)])
 	
 	var eye_color = Color(1.0, 1.0, 0.95) if invincible_timer <= 0 else Color(1.0, 0.3, 0.3)
 	draw_polygon(left_eye, PackedColorArray([eye_color]))

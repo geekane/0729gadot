@@ -788,3 +788,13 @@ func _save_all_pending_captures():
 | 背景 ColorRect 节点膨胀推高 SceneTree 开销 | 节点数从 65 暴涨至 150+ | 在 `_create_world()` 中用循环大量生成小 Window `ColorRect` 节点 | 限制窗口灯光节点数量，或采用单个 Node2D `_draw()` 统一绘制背景 |
 | EXE 打包提示 `game.tmp` 无法重命名失败 | `--export-release` 导出提示失败 | `build/game.exe` 已经在后台运行中，文件被 Windows 系统锁住 | 在打包前执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留进程 |
 
+### 10.10 偶发白闪防范与 2D 多边形绘制规范
+
+| 风险点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
+|------|------|------|---------|
+| `draw_polygon` 镜像翻转 (`flip = -1`) | 随机/偶发 1 帧屏幕白闪或暗屏 | `flip = -1` 使多边形顶点 Winding Order 变成 Clockwise 顺时针，在某些 GPU 驱动 (如 RTX 2080S 566.36) 上可能抛出退化三角形/白像素 | 在 `flip = -1` 时对顶点数组调用 `.reverse()` 显式保持 Counter-Clockwise (逆时针)，确保多边形有符号面积 > 0 |
+| `queue_free()` 前的幽灵帧绘制 | 节点被销毁的前 1 帧突然闪现 | 节点 `queue_free()` 是延迟到帧末清理，在动画结束该帧可能比 Render Pipeline 先/后生效导致以 1.0 Alpha 重绘 | 在所有 Tween 的 `tween_callback` 中，统一采用 `func(): hide(); queue_free()` 先隐藏节点再销毁 |
+| Camera `lerp` 镜头步幅突变 | 画面边缘瞬间白闪 (露底) | 帧率掉帧导致 `delta` 突大，`12.0 * delta` 溢出导致 Camera 坐标跳变，背景 `ColorRect` 与视口脱节露出默认 Clear Color | 在 Camera 移动插值中使用 `clamp(12.0 * delta, 0.0, 1.0)` 限制单帧最大跟随步幅 |
+| 护臂刺刺/局部多边形坐标算错 | 转向时刺刺穿透身体拉成大狭长线段 | 护臂刺刺误用了 `Vector2(-15 * flip)` 导致 left_arm (x=-12) 刺向右边 (+15)，跨越全身 | 左右两侧手臂分别独立计算固定绘制坐标，不直接对局部 X 坐标做盲目乘 `flip` 运算 |
+
+
