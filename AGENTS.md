@@ -826,3 +826,11 @@ func _save_all_pending_captures():
 | GUI Panel 吸收鼠标左键导致飞镖无法发射 | 在游戏画面中点击鼠标左键无任何响应，飞镖无法发射 | 视口上方顶层 HUD 的 `Panel` 或 `Control` 节点默认 `mouse_filter = MOUSE_FILTER_STOP`，吞噬了所有鼠标点击事件，导致 `Player._unhandled_input()` 永远无法收到左键事件 | 1. 在 HUD `Panel` 上显式设置 `panel.mouse_filter = Control.MOUSE_FILTER_IGNORE`；<br>2. 玩家节点攻击响应统一改用 `_input(event)`（优先于 GUI 传递层级处理）。 |
 | 鼠标左键发射方向与朝向脱节 | 点击左侧画面时飞镖依然朝右射出 | 发射飞镖时仅读取了 `facing_right` 变量，未根据鼠标在全局场景中的 `get_global_mouse_position()` 坐标实时判定 | 在 `shoot_batarang()` 中比对 `mouse_pos.x` 与 `global_position.x`，自动将 `facing_right` 转向鼠标所在方位，实现指哪打哪。 |
 
+### 10.14 AAA 主菜单解耦与 Bat-Signal 探照灯背景踩坑汇总
+
+| 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
+|------|------|------|---------|
+| 主菜单面板堆叠大段文本导致拥挤 | 菜单画面像说明书而非游戏主界面 | 将操作说明框直接放进了 `MenuPanel` 中，占据了 40% 的界面空间 | 彻底解耦主菜单与说明文字：主面板仅保留垂直一字排开的 5 大功能按键；操作指南改由点击 `⚙️ 操作指南` 按钮后调用 `_show_controls_dialog()` 弹出干净独立弹窗。 |
+| 探照灯摇摆光束与云层徽标不同步 | 光束往左摇，但云层上的蝙蝠黑影在右边 | 探照灯光束与云层 Bat Silhouette 顶点独立计算了不同的 `sweep_angle` 偏移量 | 在 `BatSignalBeam` 的 `_draw()` 回调中统一使用相同的 `top_center = Vector2(base_x + sin(sweep_angle) * range, top_y)` 坐标基准，确保光束顶端与云层 Projection Emblem 100% 紧密重合。 |
+| `--export-release` 导出 `game.tmp` 无法重命名失败 | 执行导出命令提示 Error Code 1 失败 | 导出的目标可执行文件 `build/game.exe` 正在 Windows 系统后台中运行，句柄被系统进程占用锁住 | 导出前必须执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留游戏进程后再执行导出命令。 |
+

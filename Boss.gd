@@ -140,7 +140,17 @@ func hit_by_batarang():
 	hp -= 1
 	invincible_timer = 0.3
 	
+	# 受击闪白 (Hit Flash) & 震动停顿
+	modulate = Color(2.5, 2.5, 2.5)
+	var flash_tween = create_tween()
+	flash_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.1)
+	
 	var game = get_tree().current_scene
+	if game and game.has_method("add_camera_shake"):
+		game.add_camera_shake(8.0, 0.18)
+	if game and game.has_method("trigger_hit_stop"):
+		game.trigger_hit_stop(0.04)
+		
 	if game and game.has_method("_spawn_floating_text"):
 		var text = "-1 💥" if hp > 0 else "💥 BOSS DOWN!"
 		game._spawn_floating_text(global_position, text, Color(1.0, 0.3, 0.2))

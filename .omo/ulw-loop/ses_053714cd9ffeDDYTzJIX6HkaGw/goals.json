@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "activeGoalId": "96c59e4f-9937-43b1-b8c3-d611f76a033e",
+  "activeGoalId": "93bdbc62-fffd-4140-8604-4f113267c71b",
   "goals": [
     {
-      "id": "96c59e4f-9937-43b1-b8c3-d611f76a033e",
-      "title": "目前基础上纯代码实现好弄不",
+      "id": "93bdbc62-fffd-4140-8604-4f113267c71b",
+      "title": "将完整方案汇总形成一个md",
       "status": "complete",
       "successCriteria": []
     }

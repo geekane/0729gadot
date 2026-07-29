@@ -192,6 +192,34 @@ func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		Input.flush_buffered_events()
 
+var was_on_floor = true
+
+func _spawn_landing_dust():
+	var parent_world = get_parent()
+	if not parent_world:
+		return
+	var dust_node = Node2D.new()
+	dust_node.position = position + Vector2(0, 16)
+	parent_world.add_child(dust_node)
+	
+	var particles = []
+	for i in range(4):
+		var p = ColorRect.new()
+		p.color = Color(0.85, 0.85, 0.9, 0.65)
+		p.size = Vector2(4, 3)
+		var dir_x = -1.0 if i % 2 == 0 else 1.0
+		var speed = randf_range(30.0, 70.0)
+		dust_node.add_child(p)
+		particles.append([p, Vector2(dir_x * speed, randf_range(-10.0, -30.0))])
+		
+	var tween = create_tween().set_parallel(true)
+	for item in particles:
+		var p = item[0]
+		var vel = item[1]
+		tween.tween_property(p, "position", vel * 0.2, 0.2)
+		tween.tween_property(p, "modulate:a", 0.0, 0.2)
+	tween.chain().tween_callback(func(): dust_node.hide(); dust_node.queue_free())
+
 func _physics_process(delta):
 	if is_dead:
 		velocity.y += GRAVITY * delta
@@ -205,8 +233,23 @@ func _physics_process(delta):
 	just_spawned = false
 	prev_position_y = position.y
 	
+	var currently_on_floor = is_on_floor()
+	
+	# 落地检测：触发横向挤压与落地 Dust 粒子 (Squash on Landing)
+	if currently_on_floor and not was_on_floor:
+		scale = Vector2(1.42, 1.08)
+		_spawn_landing_dust()
+		var game = get_tree().current_scene
+		if game and game.has_method("add_camera_shake"):
+			game.add_camera_shake(2.0, 0.08)
+			
+	was_on_floor = currently_on_floor
+	
+	# 平滑逼近标准体型 1.25x
+	scale = scale.lerp(Vector2(1.25, 1.25), 14.0 * delta)
+	
 	# Coyote Time & Jump Buffer
-	if is_on_floor():
+	if currently_on_floor:
 		coyote_timer = 0.12
 	else:
 		coyote_timer -= delta
@@ -217,10 +260,12 @@ func _physics_process(delta):
 	if jump_buffer_timer > 0:
 		jump_buffer_timer -= delta
 	
+	# 起跳检测：触发纵向拉伸 (Stretch on Jump)
 	if jump_buffer_timer > 0 and coyote_timer > 0:
 		velocity.y = JUMP_VELOCITY
 		coyote_timer = 0.0
 		jump_buffer_timer = 0.0
+		scale = Vector2(1.08, 1.45)
 	
 	# 无敌闪烁
 	var needs_redraw = false

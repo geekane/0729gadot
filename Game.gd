@@ -6,6 +6,7 @@ const Player = preload("res://Player.gd")
 const FlyEnemy = preload("res://FlyEnemy.gd")
 const Hazard = preload("res://Hazard.gd")
 const MovingPlatform = preload("res://MovingPlatform.gd")
+const Boss = preload("res://Boss.gd")
 
 enum GameState { MENU, PLAYING, WON, GAME_OVER }
 
@@ -35,6 +36,7 @@ var pause_overlay = null
 
 var blink_timer = 0.0
 var blink_visible = true
+var anim_time = 0.0
 
 # 5 关阶梯难度与长度数据表 (所有地面区域均配备 y=465 登高登台，杜绝地面死胡同)
 const LEVEL_CONFIGS = {
@@ -223,17 +225,45 @@ func _ready():
 	_load_high_score()
 	_create_menu()
 
+var shake_intensity = 0.0
+var shake_timer = 0.0
+
+func add_camera_shake(intensity: float, duration: float = 0.15):
+	shake_intensity = max(shake_intensity, intensity)
+	shake_timer = max(shake_timer, duration)
+
+func trigger_hit_stop(duration: float = 0.05):
+	Engine.time_scale = 0.05
+	var timer = get_tree().create_timer(duration * 0.05, true, false, true)
+	timer.timeout.connect(func(): Engine.time_scale = 1.0)
+
 func _process(delta):
+	anim_time += delta
+	_update_bg_effects(delta)
 	match state:
 		GameState.MENU:
 			_blink_step(delta)
 			if Input.is_action_just_pressed("ui_accept"):
 				_start_game()
 		GameState.PLAYING:
-			# 镜头平滑跟随玩家 (使用 lerp 插值)
+			# 镜头平滑跟随玩家 (使用 lerp 插值 + Trauma 衰减震动偏移)
 			if camera and player_node and is_instance_valid(camera) and is_instance_valid(player_node):
 				var weight = clamp(12.0 * delta, 0.0, 1.0)
-				camera.position = camera.position.lerp(player_node.position, weight)
+				var target_pos = player_node.position
+				
+				if shake_timer > 0:
+					shake_timer -= delta
+					var shake_offset = Vector2(
+						randf_range(-shake_intensity, shake_intensity),
+						randf_range(-shake_intensity, shake_intensity)
+					)
+					target_pos += shake_offset
+					shake_intensity = move_toward(shake_intensity, 0.0, delta * 30.0)
+				else:
+					shake_intensity = 0.0
+					
+				camera.position = camera.position.lerp(target_pos, weight)
+				
 				# 掉落死亡判定
 				if player_node.position.y > GROUND_Y + 100:
 					_on_player_hit(player_node)
@@ -241,6 +271,29 @@ func _process(delta):
 			_blink_step(delta)
 			if Input.is_action_just_pressed("ui_accept"):
 				_go_back_menu()
+
+func _update_bg_effects(delta):
+	# 1. 探照灯与云层蝙蝠徽标 Projection 动态摇摆
+	var bat_signal = find_child("BatSignalBeam", true, false)
+	if bat_signal and is_instance_valid(bat_signal):
+		bat_signal.set_meta("sweep_angle", anim_time * 0.5)
+		bat_signal.set_meta("flicker", 0.85 + sin(anim_time * 5.0) * 0.15)
+		bat_signal.queue_redraw()
+		
+	# 2. 摩天楼窗光微弱闪烁
+	var win_nodes = get_tree().get_nodes_in_group("flicker_windows")
+	for i in range(win_nodes.size()):
+		var w = win_nodes[i]
+		if is_instance_valid(w):
+			w.modulate.a = 0.25 + sin(anim_time * 2.5 + i * 0.7) * 0.2
+			
+	# 3. 漂移云层平移
+	var cloud_nodes = get_tree().get_nodes_in_group("drifting_clouds")
+	for c in cloud_nodes:
+		if is_instance_valid(c):
+			c.position.x += 12.0 * delta
+			if c.position.x > 5500:
+				c.position.x = -300
 
 func _unhandled_input(event):
 	if state == GameState.PLAYING:
@@ -282,6 +335,55 @@ func _save_high_score():
 
 # ─── 菜单 ──────────────────────────────────────────
 
+static func _create_vector_icon(type: String, custom_size: Vector2 = Vector2(24, 24)) -> Control:
+	var icon = Control.new()
+	icon.custom_minimum_size = custom_size
+	icon.size = custom_size
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.set_meta("icon_type", type)
+	icon.draw.connect(func():
+		var t = icon.get_meta("icon_type")
+		match t:
+			"heart_full":
+				var pts = PackedVector2Array([
+					Vector2(12, 20), Vector2(3, 11), Vector2(3, 6), Vector2(7, 3),
+					Vector2(12, 7), Vector2(17, 3), Vector2(21, 6), Vector2(21, 11)
+				])
+				icon.draw_polygon(pts, PackedColorArray([Color(0.95, 0.15, 0.25)]))
+				icon.draw_polyline(pts, Color(0.6, 0.05, 0.1), 1.5)
+			"heart_empty":
+				var pts = PackedVector2Array([
+					Vector2(12, 20), Vector2(3, 11), Vector2(3, 6), Vector2(7, 3),
+					Vector2(12, 7), Vector2(17, 3), Vector2(21, 6), Vector2(21, 11)
+				])
+				icon.draw_polygon(pts, PackedColorArray([Color(0.2, 0.22, 0.28, 0.8)]))
+				icon.draw_polyline(pts, Color(0.4, 0.45, 0.55), 1.5)
+			"coin":
+				icon.draw_circle(Vector2(12, 12), 10.0, Color(1.0, 0.85, 0.1))
+				icon.draw_circle(Vector2(12, 12), 7.5, Color(0.9, 0.7, 0.0))
+				icon.draw_rect(Rect2(10, 8, 4, 8), Color(1.0, 0.95, 0.4))
+			"crown":
+				var pts = PackedVector2Array([
+					Vector2(3, 18), Vector2(3, 8), Vector2(8, 13), Vector2(12, 5),
+					Vector2(16, 13), Vector2(21, 8), Vector2(21, 18)
+				])
+				icon.draw_polygon(pts, PackedColorArray([Color(1.0, 0.8, 0.1)]))
+				icon.draw_polyline(pts, Color(0.8, 0.6, 0.0), 1.5)
+				icon.draw_circle(Vector2(12, 5), 2.0, Color(1.0, 0.95, 0.8))
+			"bat":
+				icon.draw_circle(Vector2(12, 12), 10.0, Color(1.0, 0.85, 0.1))
+				var wings = PackedVector2Array([
+					Vector2(5, 11), Vector2(8, 9), Vector2(12, 12), Vector2(16, 9), Vector2(19, 11),
+					Vector2(17, 15), Vector2(12, 16), Vector2(7, 15)
+				])
+				icon.draw_polygon(wings, PackedColorArray([Color(0.1, 0.1, 0.15)]))
+			"flag":
+				icon.draw_line(Vector2(5, 4), Vector2(5, 21), Color(0.8, 0.85, 0.9), 2.5)
+				var flag_pts = PackedVector2Array([Vector2(6, 4), Vector2(19, 8), Vector2(6, 13)])
+				icon.draw_polygon(flag_pts, PackedColorArray([Color(0.15, 0.85, 0.35)]))
+	)
+	return icon
+
 func _create_menu():
 	state = GameState.MENU
 	is_paused = false
@@ -298,110 +400,372 @@ func _create_menu():
 	
 	var stars = Node2D.new()
 	stars.name = "Stars"
-	for i in range(40):
+	for i in range(50):
 		var star = ColorRect.new()
-		star.color = Color(1.0, 1.0, 1.0, randf_range(0.2, 0.6))
-		var s = randf_range(2.0, 5.0)
+		star.color = Color(1.0, 1.0, 1.0, randf_range(0.25, 0.75))
+		var s = randf_range(2.0, 4.5)
 		star.size = Vector2(s, s)
 		star.position = Vector2(randf_range(0, 1152), randf_range(0, 648))
 		stars.add_child(star)
 	add_child(stars)
+
+	# 哥谭菜单背景探照灯 (Bat-Signal Beam & Projected Emblem)
+	var menu_bat_signal = Node2D.new()
+	menu_bat_signal.name = "BatSignalBeam"
+	menu_bat_signal.set_meta("sweep_angle", 0.0)
+	menu_bat_signal.set_meta("flicker", 1.0)
+	menu_bat_signal.draw.connect(func():
+		var angle = menu_bat_signal.get_meta("sweep_angle")
+		var flk = menu_bat_signal.get_meta("flicker")
+		var base_pos = Vector2(576, 620)
+		var top_center = Vector2(576 + sin(angle) * 250.0, 80)
+		
+		# 光束
+		var beam_pts = PackedVector2Array([
+			base_pos + Vector2(-20, 0),
+			top_center + Vector2(-110, 0),
+			top_center + Vector2(110, 0),
+			base_pos + Vector2(20, 0)
+		])
+		menu_bat_signal.draw_polygon(beam_pts, PackedColorArray([Color(1.0, 0.9, 0.3, 0.09 * flk)]))
+		
+		# 云层发光黄晕
+		menu_bat_signal.draw_circle(top_center, 55.0, Color(1.0, 0.88, 0.25, 0.45 * flk))
+		menu_bat_signal.draw_circle(top_center, 40.0, Color(1.0, 0.95, 0.5, 0.7 * flk))
+		
+		# 蝙蝠徽标 Bat Silhouette
+		var bx = top_center.x
+		var by = top_center.y
+		var bat_pts = PackedVector2Array([
+			Vector2(bx - 26, by - 4), Vector2(bx - 15, by - 12), Vector2(bx, by - 5),
+			Vector2(bx + 15, by - 12), Vector2(bx + 26, by - 4), Vector2(bx + 22, by + 9),
+			Vector2(bx + 11, by + 14), Vector2(bx, by + 7), Vector2(bx - 11, by + 14),
+			Vector2(bx - 22, by + 9)
+		])
+		menu_bat_signal.draw_polygon(bat_pts, PackedColorArray([Color(0.08, 0.08, 0.14, 0.95 * flk)]))
+		menu_bat_signal.draw_polygon(PackedVector2Array([Vector2(bx - 5, by - 5), Vector2(bx - 2, by - 14), Vector2(bx, by - 5)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
+		menu_bat_signal.draw_polygon(PackedVector2Array([Vector2(bx, by - 5), Vector2(bx + 2, by - 14), Vector2(bx + 5, by - 5)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
+	)
+	add_child(menu_bat_signal)
 	
+	# 主界面 Panel 容器
 	var panel = Panel.new()
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.16, 0.28, 0.9)
-	style.corner_radius_top_left = 16
-	style.corner_radius_top_right = 16
-	style.corner_radius_bottom_left = 16
-	style.corner_radius_bottom_right = 16
-	style.shadow_size = 14
-	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.bg_color = Color(0.10, 0.14, 0.26, 0.92)
+	style.corner_radius_top_left = 18
+	style.corner_radius_top_right = 18
+	style.corner_radius_bottom_left = 18
+	style.corner_radius_bottom_right = 18
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(1.0, 0.85, 0.2, 0.75)
+	style.shadow_size = 18
+	style.shadow_color = Color(0, 0, 0, 0.5)
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(246, 80)
-	panel.size = Vector2(660, 480)
+	panel.position = Vector2(306, 75)
+	panel.size = Vector2(540, 480)
 	panel.name = "MenuPanel"
 	add_child(panel)
 	
+	# 顶端标题 Header
+	var title_vbox = VBoxContainer.new()
+	title_vbox.position = Vector2(20, 22)
+	title_vbox.size = Vector2(500, 95)
+	title_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_vbox.add_theme_constant_override("separation", 6)
+	panel.add_child(title_vbox)
+	
+	var icon_box = HBoxContainer.new()
+	icon_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	icon_box.add_child(_create_vector_icon("bat", Vector2(42, 42)))
+	title_vbox.add_child(icon_box)
+	
 	var title = Label.new()
-	title.text = "🦇 哥谭大冒险：蝙蝠侠出击"
-	title.add_theme_font_size_override("font_size", 40)
+	title.text = "蝙蝠侠：哥谭暗夜守护者"
+	title.add_theme_font_size_override("font_size", 30)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
 	title.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.1, 0.95))
-	title.add_theme_constant_override("outline_size", 8)
+	title.add_theme_constant_override("outline_size", 6)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 25)
-	title.size = Vector2(660, 55)
-	panel.add_child(title)
+	title_vbox.add_child(title)
+	
+	var subtitle = Label.new()
+	subtitle.text = "GOTHAM ADVENTURE: BATMAN STRIKES"
+	subtitle.add_theme_font_size_override("font_size", 12)
+	subtitle.add_theme_color_override("font_color", Color(0.6, 0.75, 0.95, 0.8))
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_vbox.add_child(subtitle)
 
-	# 战术控制指南面板
-	var instr_box = Panel.new()
-	var ib_style = StyleBoxFlat.new()
-	ib_style.bg_color = Color(0.06, 0.08, 0.16, 0.65)
-	ib_style.corner_radius_top_left = 10
-	ib_style.corner_radius_top_right = 10
-	ib_style.corner_radius_bottom_left = 10
-	ib_style.corner_radius_bottom_right = 10
-	ib_style.border_width_left = 1
-	ib_style.border_width_right = 1
-	ib_style.border_width_top = 1
-	ib_style.border_width_bottom = 1
-	ib_style.border_color = Color(0.3, 0.4, 0.6, 0.4)
-	instr_box.add_theme_stylebox_override("panel", ib_style)
-	instr_box.position = Vector2(50, 100)
-	instr_box.size = Vector2(560, 200)
-	panel.add_child(instr_box)
+	# 垂直功能按钮组容器 (排版干净大气)
+	var btn_vbox = VBoxContainer.new()
+	btn_vbox.position = Vector2(70, 135)
+	btn_vbox.size = Vector2(400, 320)
+	btn_vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(btn_vbox)
 	
-	var instr = Label.new()
-	instr.text = "【 🎮 全新操控指令与战术手册 】\n\n• A / D 键：左右移动（蝙蝠战衣平滑巡航）\n• Space 空格键：高跳 / 跃上平台\n• 鼠标左键：发射蝙蝠飞镖 (Batarang)\n• ESC 键：暂停菜单 | 第一关为手把手教学试炼"
-	instr.add_theme_font_size_override("font_size", 16)
-	instr.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0, 0.9))
-	instr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	instr.position = Vector2(15, 15)
-	instr.size = Vector2(530, 170)
-	instr_box.add_child(instr)
+	var btn_configs = [
+		{"text": "🚀  开始出击 (Level 1 教学关)", "color": Color(1.0, 0.92, 0.3), "action": func(): _start_game()},
+		{"text": "📖  战役关卡选择 (Level 1 ~ 5)", "color": Color(0.9, 0.95, 1.0), "action": func(): _show_level_select_dialog()},
+		{"text": "🏆  荣誉排行榜 (High Scores)", "color": Color(1.0, 0.8, 0.2), "action": func(): _show_high_score_dialog()},
+		{"text": "⚙️  操作指南 (Controls)", "color": Color(0.7, 0.85, 1.0), "action": func(): _show_controls_dialog()},
+		{"text": "🚪  退出游戏 (Quit Game)", "color": Color(1.0, 0.45, 0.45), "action": func(): get_tree().quit()}
+	]
 	
-	# 交互式开始游戏按钮
-	var start_btn = Button.new()
-	start_btn.text = "🚀  开始游戏  (进入 Level 1 教学关)"
-	start_btn.add_theme_font_size_override("font_size", 22)
-	start_btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.3))
-	
-	var btn_style = StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.18, 0.28, 0.48, 0.9)
-	btn_style.corner_radius_top_left = 12
-	btn_style.corner_radius_top_right = 12
-	btn_style.corner_radius_bottom_left = 12
-	btn_style.corner_radius_bottom_right = 12
-	btn_style.shadow_size = 6
-	start_btn.add_theme_stylebox_override("normal", btn_style)
-	
-	var btn_hover = StyleBoxFlat.new()
-	btn_hover.bg_color = Color(0.28, 0.42, 0.68, 0.95)
-	btn_hover.corner_radius_top_left = 12
-	btn_hover.corner_radius_top_right = 12
-	btn_hover.corner_radius_bottom_left = 12
-	btn_hover.corner_radius_bottom_right = 12
-	start_btn.add_theme_stylebox_override("hover", btn_hover)
-	
-	start_btn.position = Vector2(100, 330)
-	start_btn.size = Vector2(460, 55)
-	start_btn.pressed.connect(func(): _start_game())
-	panel.add_child(start_btn)
-	
+	for bd in btn_configs:
+		var btn = Button.new()
+		btn.text = bd["text"]
+		btn.add_theme_font_size_override("font_size", 17)
+		btn.add_theme_color_override("font_color", bd["color"])
+		btn.custom_minimum_size = Vector2(400, 46)
+		
+		var bstyle = StyleBoxFlat.new()
+		bstyle.bg_color = Color(0.16, 0.24, 0.42, 0.92)
+		bstyle.corner_radius_top_left = 10
+		bstyle.corner_radius_top_right = 10
+		bstyle.corner_radius_bottom_left = 10
+		bstyle.corner_radius_bottom_right = 10
+		bstyle.border_width_left = 1
+		bstyle.border_width_right = 1
+		bstyle.border_width_top = 1
+		bstyle.border_width_bottom = 1
+		bstyle.border_color = Color(0.35, 0.48, 0.75, 0.5)
+		btn.add_theme_stylebox_override("normal", bstyle)
+		
+		var bhover = StyleBoxFlat.new()
+		bhover.bg_color = Color(0.26, 0.40, 0.68, 0.98)
+		bhover.corner_radius_top_left = 10
+		bhover.corner_radius_top_right = 10
+		bhover.corner_radius_bottom_left = 10
+		bhover.corner_radius_bottom_right = 10
+		bhover.border_width_left = 2
+		bhover.border_width_right = 2
+		bhover.border_width_top = 2
+		bhover.border_width_bottom = 2
+		bhover.border_color = Color(1.0, 0.85, 0.2, 0.9)
+		btn.add_theme_stylebox_override("hover", bhover)
+		btn.pressed.connect(bd["action"])
+		btn_vbox.add_child(btn)
+		
 	overlay = CanvasLayer.new()
 	overlay.name = "Overlay"
 	overlay_label = Label.new()
 	overlay_label.text = "按 空格键 或 点击上方按钮 开始出击"
-	overlay_label.add_theme_font_size_override("font_size", 22)
+	overlay_label.add_theme_font_size_override("font_size", 18)
 	overlay_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 0.9))
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	overlay_label.add_theme_constant_override("outline_size", 3)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	overlay_label.position = Vector2(246, 500)
+	overlay_label.position = Vector2(246, 580)
 	overlay_label.size = Vector2(660, 35)
 	overlay.add_child(overlay_label)
 	add_child(overlay)
 	overlay_hint = overlay_label
+
+func _show_controls_dialog():
+	var dialog = CanvasLayer.new()
+	dialog.name = "ControlsDialog"
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.65)
+	bg.size = Vector2(2400, 1600)
+	bg.position = Vector2(-400, -300)
+	dialog.add_child(bg)
+	
+	var panel = Panel.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.16, 0.28, 0.96)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.4, 0.75, 1.0, 0.85)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(326, 120)
+	panel.size = Vector2(500, 400)
+	dialog.add_child(panel)
+	
+	var title = Label.new()
+	title.text = "⚙️  战术控制手册 (Controls)"
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.4, 0.85, 1.0))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 20)
+	title.size = Vector2(500, 40)
+	panel.add_child(title)
+	
+	var instr = Label.new()
+	instr.text = "• A / D 键 或 左右方向键：左右平滑巡航\n• Space 空格键 或 W / 上方向键：高跳 / 跃上平台\n• 鼠标左键 或 J / K 键：朝方向发射蝙蝠飞镖 (Batarang)\n• ESC 键：打开暂停菜单 (按 R 键重试，M 键返回主菜单)\n• 土狼时间 (0.12s)：走出平台边缘短时间内仍可按跳跃键"
+	instr.add_theme_font_size_override("font_size", 16)
+	instr.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0, 0.95))
+	instr.autowrap_mode = TextServer.AUTOWRAP_WORD
+	instr.position = Vector2(30, 80)
+	instr.size = Vector2(440, 240)
+	panel.add_child(instr)
+	
+	var close_btn = Button.new()
+	close_btn.text = "我知道了"
+	close_btn.add_theme_font_size_override("font_size", 16)
+	close_btn.position = Vector2(190, 335)
+	close_btn.size = Vector2(120, 42)
+	close_btn.pressed.connect(func(): dialog.queue_free())
+	panel.add_child(close_btn)
+	
+	add_child(dialog)
+
+func _show_high_score_dialog():
+	var dialog = CanvasLayer.new()
+	dialog.name = "HighScoreDialog"
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.65)
+	bg.size = Vector2(2400, 1600)
+	bg.position = Vector2(-400, -300)
+	dialog.add_child(bg)
+	
+	var panel = Panel.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.16, 0.28, 0.96)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(1.0, 0.85, 0.2, 0.85)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(346, 130)
+	panel.size = Vector2(460, 360)
+	dialog.add_child(panel)
+	
+	var title = Label.new()
+	title.text = "🏆  哥谭英雄荣誉榜"
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 20)
+	title.size = Vector2(460, 40)
+	panel.add_child(title)
+	
+	var hs_box = HBoxContainer.new()
+	hs_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	hs_box.position = Vector2(40, 90)
+	hs_box.size = Vector2(380, 50)
+	hs_box.add_child(_create_vector_icon("crown", Vector2(36, 36)))
+	
+	var hs_val = Label.new()
+	hs_val.text = " 历史最高分:  %d" % high_score
+	hs_val.add_theme_font_size_override("font_size", 22)
+	hs_val.add_theme_color_override("font_color", Color(1.0, 0.92, 0.3))
+	hs_box.add_child(hs_val)
+	panel.add_child(hs_box)
+	
+	var desc = Label.new()
+	desc.text = "• 守护哥谭的英雄功勋已被自动存入本地存储\n• 击败小丑 Boss (Joker) 获得 +50 额外功勋勋章！"
+	desc.add_theme_font_size_override("font_size", 15)
+	desc.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0, 0.9))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.position = Vector2(35, 170)
+	desc.size = Vector2(390, 100)
+	panel.add_child(desc)
+	
+	var close_btn = Button.new()
+	close_btn.text = "关闭"
+	close_btn.add_theme_font_size_override("font_size", 16)
+	close_btn.position = Vector2(170, 290)
+	close_btn.size = Vector2(120, 40)
+	close_btn.pressed.connect(func(): dialog.queue_free())
+	panel.add_child(close_btn)
+	
+	add_child(dialog)
+
+func _show_level_select_dialog():
+	var dialog = CanvasLayer.new()
+	dialog.name = "LevelSelectDialog"
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.65)
+	bg.size = Vector2(2400, 1600)
+	bg.position = Vector2(-400, -300)
+	dialog.add_child(bg)
+	
+	var panel = Panel.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.16, 0.28, 0.96)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(1.0, 0.85, 0.2, 0.8)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(346, 100)
+	panel.size = Vector2(460, 440)
+	dialog.add_child(panel)
+	
+	var title = Label.new()
+	title.text = "📖  选择战役关卡"
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 20)
+	title.size = Vector2(460, 40)
+	panel.add_child(title)
+	
+	var vbox = VBoxContainer.new()
+	vbox.position = Vector2(40, 75)
+	vbox.size = Vector2(380, 300)
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	
+	for lvl in range(1, MAX_LEVEL + 1):
+		var cfg = LEVEL_CONFIGS[lvl]
+		var btn = Button.new()
+		btn.text = "Level %d: %s (%dpx)" % [lvl, cfg["name"], cfg["width"]]
+		btn.add_theme_font_size_override("font_size", 16)
+		btn.custom_minimum_size = Vector2(380, 45)
+		
+		var bstyle = StyleBoxFlat.new()
+		bstyle.bg_color = Color(0.18, 0.26, 0.44, 0.9)
+		bstyle.corner_radius_top_left = 8
+		bstyle.corner_radius_top_right = 8
+		bstyle.corner_radius_bottom_left = 8
+		bstyle.corner_radius_bottom_right = 8
+		btn.add_theme_stylebox_override("normal", bstyle)
+		
+		var bhover = StyleBoxFlat.new()
+		bhover.bg_color = Color(0.28, 0.42, 0.68, 0.95)
+		bhover.corner_radius_top_left = 8
+		bhover.corner_radius_top_right = 8
+		bhover.corner_radius_bottom_left = 8
+		bhover.corner_radius_bottom_right = 8
+		btn.add_theme_stylebox_override("hover", bhover)
+		
+		var target_lvl = lvl
+		btn.pressed.connect(func():
+			dialog.queue_free()
+			_start_level(target_lvl)
+		)
+		vbox.add_child(btn)
+		
+	var close_btn = Button.new()
+	close_btn.text = "返回"
+	close_btn.position = Vector2(180, 390)
+	close_btn.size = Vector2(100, 35)
+	close_btn.pressed.connect(func(): dialog.queue_free())
+	panel.add_child(close_btn)
+	
+	add_child(dialog)
 
 func _start_game():
 	current_level = 1
@@ -468,58 +832,151 @@ func _create_world():
 	var level_cfg = LEVEL_CONFIGS.get(current_level, LEVEL_CONFIGS[1])
 	var cur_width = level_cfg["width"]
 	
-	# 1. 哥谭夜空底板
-	var sky_bg = ColorRect.new()
-	sky_bg.color = Color(0.12, 0.16, 0.28, 1.0)
-	sky_bg.size = Vector2(cur_width + 800, 1400)
-	sky_bg.position = Vector2(-400, -400)
-	sky_bg.name = "WorldSkyBG"
-	add_child(sky_bg)
-
-	# 2. 哥谭明月
-	var moon = ColorRect.new()
-	moon.color = Color(1.0, 0.95, 0.7, 0.9)
-	moon.size = Vector2(65, 65)
-	moon.position = Vector2(cur_width - 310, 20)
-	add_child(moon)
+	# ─── 视差滚屏背景系统 (Parallax Background System) ───
+	var pb = ParallaxBackground.new()
+	pb.name = "ParallaxBG"
 	
-	# 3. 哥谭夜空柔和浮云
+	# Layer 0: 夜空底板、哥谭明月与摇摆蝙蝠探照灯 (固定比 0.0, 0.0)
+	var layer0 = ParallaxLayer.new()
+	layer0.motion_scale = Vector2(0.0, 0.0)
+	var sky_bg = ColorRect.new()
+	sky_bg.color = Color(0.06, 0.09, 0.18, 1.0)
+	sky_bg.size = Vector2(cur_width + 1600, 1400)
+	sky_bg.position = Vector2(-600, -400)
+	layer0.add_child(sky_bg)
+	
+	var moon = ColorRect.new()
+	moon.color = Color(1.0, 0.95, 0.72, 0.92)
+	moon.size = Vector2(75, 75)
+	moon.position = Vector2(850, 20)
+	layer0.add_child(moon)
+	
+	# 动态摇摆探照灯与云层蝙蝠徽标 Projection
+	var bat_signal = Node2D.new()
+	bat_signal.name = "BatSignalBeam"
+	bat_signal.set_meta("sweep_angle", 0.0)
+	bat_signal.set_meta("flicker", 1.0)
+	bat_signal.draw.connect(func():
+		var angle = bat_signal.get_meta("sweep_angle")
+		var flk = bat_signal.get_meta("flicker")
+		var base_pos = Vector2(850, 520)
+		var top_center = Vector2(850 + sin(angle) * 220.0, 50)
+		
+		# 探照灯光束
+		var beam_pts = PackedVector2Array([
+			base_pos + Vector2(-15, 0),
+			top_center + Vector2(-90, 0),
+			top_center + Vector2(90, 0),
+			base_pos + Vector2(15, 0)
+		])
+		bat_signal.draw_polygon(beam_pts, PackedColorArray([Color(1.0, 0.9, 0.3, 0.085 * flk)]))
+		
+		# 云层黄色光晕
+		bat_signal.draw_circle(top_center, 48.0, Color(1.0, 0.88, 0.25, 0.45 * flk))
+		bat_signal.draw_circle(top_center, 34.0, Color(1.0, 0.95, 0.5, 0.7 * flk))
+		
+		# 蝙蝠徽标 Bat Silhouette
+		var bx = top_center.x
+		var by = top_center.y
+		var bat_pts = PackedVector2Array([
+			Vector2(bx - 24, by - 4), Vector2(bx - 14, by - 10), Vector2(bx, by - 4),
+			Vector2(bx + 14, by - 10), Vector2(bx + 24, by - 4), Vector2(bx + 20, by + 8),
+			Vector2(bx + 10, by + 13), Vector2(bx, by + 6), Vector2(bx - 10, by + 13),
+			Vector2(bx - 20, by + 8)
+		])
+		bat_signal.draw_polygon(bat_pts, PackedColorArray([Color(0.08, 0.08, 0.14, 0.95 * flk)]))
+		bat_signal.draw_polygon(PackedVector2Array([Vector2(bx - 5, by - 4), Vector2(bx - 2, by - 13), Vector2(bx, by - 4)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
+		bat_signal.draw_polygon(PackedVector2Array([Vector2(bx, by - 4), Vector2(bx + 2, by - 13), Vector2(bx + 5, by - 4)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
+	)
+	layer0.add_child(bat_signal)
+	pb.add_child(layer0)
+	
+	# Layer 1: 远景起伏摩天大楼与呼吸闪烁窗光 (视差比 0.08, 0.02)
+	var layer1 = ParallaxLayer.new()
+	layer1.motion_scale = Vector2(0.08, 0.02)
+	var b_x1 = -200.0
+	var b_idx1 = 0
+	while b_x1 < cur_width + 800:
+		var bw = randf_range(90.0, 150.0)
+		var bh = randf_range(200.0, 380.0)
+		var b = ColorRect.new()
+		b.color = Color(0.10, 0.13, 0.22, 0.88)
+		b.size = Vector2(bw, bh)
+		b.position = Vector2(b_x1, GROUND_Y - bh + 20)
+		layer1.add_child(b)
+		
+		# 楼顶避雷针天线
+		if b_idx1 % 2 == 0:
+			var ant = ColorRect.new()
+			ant.color = Color(0.6, 0.65, 0.75, 0.7)
+			ant.size = Vector2(2, 35)
+			ant.position = Vector2(b_x1 + bw/2.0 - 1, GROUND_Y - bh - 15)
+			layer1.add_child(ant)
+			
+		# 呼吸闪烁窗户
+		for wy in range(40, int(bh) - 40, 30):
+			for wx in range(12, int(bw) - 20, 24):
+				if randf() > 0.35:
+					var win = ColorRect.new()
+					win.color = Color(1.0, 0.88, 0.35, 0.35)
+					win.size = Vector2(8, 12)
+					win.position = Vector2(b_x1 + wx, GROUND_Y - bh + wy)
+					win.add_to_group("flicker_windows")
+					layer1.add_child(win)
+		b_x1 += bw + randf_range(8, 24)
+		b_idx1 += 1
+	pb.add_child(layer1)
+	
+	# Layer 2: 中景哥谭大楼天际线与漂移云层 (视差比 0.22, 0.05)
+	var layer2 = ParallaxLayer.new()
+	layer2.motion_scale = Vector2(0.22, 0.05)
+	var b_x2 = -150.0
+	while b_x2 < cur_width + 600:
+		var bw = randf_range(110.0, 160.0)
+		var bh = randf_range(160.0, 280.0)
+		var b = ColorRect.new()
+		b.color = Color(0.14, 0.18, 0.30, 0.95)
+		b.size = Vector2(bw, bh)
+		b.position = Vector2(b_x2, GROUND_Y - bh + 25)
+		layer2.add_child(b)
+		
+		for wy in range(30, int(bh) - 30, 28):
+			for wx in range(15, int(bw) - 20, 25):
+				if randf() > 0.4:
+					var win = ColorRect.new()
+					win.color = Color(0.4, 0.9, 1.0, 0.35)
+					win.size = Vector2(10, 14)
+					win.position = Vector2(b_x2 + wx, GROUND_Y - bh + wy)
+					win.add_to_group("flicker_windows")
+					layer2.add_child(win)
+		b_x2 += bw + randf_range(10, 30)
+		
 	var clouds_data = [
 		[100, 20, 180, 50], [450, -30, 220, 60], [850, 10, 200, 55],
 		[1200, -40, 260, 70], [1600, 30, 190, 50], [2100, -20, 240, 60],
-		[2600, 10, 210, 55], [3200, -30, 250, 65], [3800, 20, 200, 50], [4400, -10, 230, 60]
+		[2600, 10, 210, 55], [3200, -30, 250, 65], [3800, 20, 200, 50]
 	]
 	for cd in clouds_data:
-		if cd[0] < cur_width + 200:
-			var cloud = ColorRect.new()
-			cloud.color = Color(0.22, 0.28, 0.42, 0.45)
-			cloud.size = Vector2(cd[2], cd[3])
-			cloud.position = Vector2(cd[0], cd[1])
-			add_child(cloud)
-
-	# 4. 探照灯
-	var bat_signal = Polygon2D.new()
-	bat_signal.color = Color(1.0, 0.9, 0.3, 0.08)
-	bat_signal.polygon = PackedVector2Array([
-		Vector2(cur_width - 480, 480), Vector2(cur_width - 580, -150), Vector2(cur_width - 330, -150)
-	])
-	add_child(bat_signal)
-
-	# 5. 哥谭摩天大楼天际线
-	for bx in range(-100, cur_width + 100, 180):
-		var bw = 140.0
-		var bh = 220.0
-		var building = ColorRect.new()
-		building.color = Color(0.16, 0.2, 0.32, 0.95)
-		building.size = Vector2(bw, bh)
-		building.position = Vector2(bx, GROUND_Y - bh + 25)
-		add_child(building)
-		
-		var win1 = ColorRect.new()
-		win1.color = Color(1.0, 0.88, 0.35, 0.35)
-		win1.size = Vector2(10, 14)
-		win1.position = Vector2(bx + 20, GROUND_Y - bh + 50)
-		add_child(win1)
+		var cloud = ColorRect.new()
+		cloud.color = Color(0.22, 0.28, 0.42, 0.45)
+		cloud.size = Vector2(cd[2], cd[3])
+		cloud.position = Vector2(cd[0], cd[1])
+		cloud.add_to_group("drifting_clouds")
+		layer2.add_child(cloud)
+	pb.add_child(layer2)
+	
+	# Layer 3: 近景管道与护栏 (视差比 0.55, 0.10)
+	var layer3 = ParallaxLayer.new()
+	layer3.motion_scale = Vector2(0.55, 0.10)
+	for bx in range(-100, cur_width + 400, 320):
+		var pipe = ColorRect.new()
+		pipe.color = Color(0.18, 0.22, 0.30, 0.9)
+		pipe.size = Vector2(12, 140)
+		pipe.position = Vector2(bx, GROUND_Y - 140)
+		layer3.add_child(pipe)
+	pb.add_child(layer3)
+	
+	add_child(pb)
 
 	# 6. 相机极限范围
 	var cam = Camera2D.new()
@@ -708,32 +1165,41 @@ func _create_hud():
 	style.shadow_color = Color(0, 0, 0, 0.3)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(560, 52)
+	panel.size = Vector2(570, 52)
 	layer.add_child(panel)
 	
-	# 金币文本
+	var hbox = HBoxContainer.new()
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.position = Vector2(12, 12)
+	hbox.size = Vector2(546, 28)
+	hbox.add_theme_constant_override("separation", 18)
+	panel.add_child(hbox)
+	
+	# 1. 金币区域 (矢量 Icon + Label)
+	var coin_box = HBoxContainer.new()
+	coin_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coin_box.add_child(_create_vector_icon("coin", Vector2(24, 24)))
 	score_label = Label.new()
 	score_label.name = "ScoreLabel"
-	score_label.text = "💰 " + str(score)
-	score_label.position = Vector2(14, 12)
+	score_label.text = str(score)
 	score_label.add_theme_font_size_override("font_size", 18)
 	score_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 	score_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	score_label.add_theme_constant_override("outline_size", 2)
-	panel.add_child(score_label)
+	coin_box.add_child(score_label)
+	hbox.add_child(coin_box)
 
-	# 生命文本 (爱心)
-	lives_label = Label.new()
+	# 2. 生命值区域 (矢量 Heart Icons 容器)
+	var hearts_box = HBoxContainer.new()
+	hearts_box.name = "HeartsContainer"
+	hearts_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hearts_box.add_theme_constant_override("separation", 2)
+	lives_label = Label.new() # 占位引用
 	lives_label.name = "LivesLabel"
-	lives_label.text = "❤️ ❤️ ❤️"
-	lives_label.position = Vector2(105, 12)
-	lives_label.add_theme_font_size_override("font_size", 18)
-	lives_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-	lives_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	lives_label.add_theme_constant_override("outline_size", 2)
+	lives_label.visible = false
 	panel.add_child(lives_label)
+	hbox.add_child(hearts_box)
 	_update_lives_hud()
-	
 	# 关卡进度
 	level_label = Label.new()
 	level_label.name = "LevelLabel"
@@ -766,15 +1232,19 @@ func _create_hud():
 	add_child(layer)
 
 func _update_lives_hud():
-	if not lives_label or not is_instance_valid(lives_label):
+	var hud_layer = get_node_or_null("HUD")
+	if not hud_layer:
 		return
-	var heart_str = ""
+	var hearts_box = hud_layer.find_child("HeartsContainer", true, false)
+	if not hearts_box:
+		return
+		
+	for child in hearts_box.get_children():
+		child.queue_free()
+		
 	for i in range(3):
-		if i < lives:
-			heart_str += "❤️ "
-		else:
-			heart_str += "🖤 "
-	lives_label.text = heart_str.strip_edges()
+		var heart_type = "heart_full" if i < lives else "heart_empty"
+		hearts_box.add_child(_create_vector_icon(heart_type, Vector2(24, 24)))
 
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
@@ -796,11 +1266,14 @@ func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
 func _on_boss_defeated(boss_node):
 	"""小丑大 Boss 被击败后触发"""
 	score += 50
-	_update_score_hud()
+	if score_label and is_instance_valid(score_label):
+		score_label.text = "💰 " + str(score)
 	_spawn_floating_text(boss_node.global_position, "+50 👑 BOSS DOWN!", Color(1.0, 0.85, 0.2))
 	_spawn_particle_burst(boss_node.global_position, Color(1.0, 0.85, 0.1))
 	_spawn_particle_burst(boss_node.global_position + Vector2(-30, -20), Color(0.9, 0.2, 0.9))
 	_spawn_particle_burst(boss_node.global_position + Vector2(30, -20), Color(0.2, 0.9, 0.9))
+	add_camera_shake(18.0, 0.5)
+	trigger_hit_stop(0.08)
 
 # ─── 暂停菜单 ──────────────────────────────────────
 
