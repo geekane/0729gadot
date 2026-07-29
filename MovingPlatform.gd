@@ -13,15 +13,16 @@ var height = 16.0
 func _ready():
 	sync_to_physics = true  # 开启物理同步，使 CharacterBody2D 能完美跟随左右移动与上下升降
 	collision_layer = 2     # 单向平台物理图层
+	collision_mask = 0      # 不检测其他物体，避免干扰
 	start_pos = position
 	
-	# 碰撞体
+	# 碰撞体：必须 one_way_collision 让玩家从下方穿过
 	var shape = RectangleShape2D.new()
 	shape.size = Vector2(width, height)
 	var col = CollisionShape2D.new()
 	col.shape = shape
-	# 单向平台: 只从上方站住，从下方和侧面均可穿过
 	col.one_way_collision = true
+	col.one_way_collision_margin = 4.0  # 给 4px 容差，防止高速移动时脱离平台
 	add_child(col)
 	
 	# 视觉结构
@@ -42,7 +43,10 @@ func _physics_process(delta):
 	time_counter += delta * move_speed
 	var offset = sin(time_counter) * move_distance
 	
+	# 不直接赋值 position，而是增量移动，让 AnimatableBody2D 正确计算速度矢量
 	if is_vertical:
-		position.y = start_pos.y + offset
+		var target_y = start_pos.y + offset
+		position.y = target_y
 	else:
-		position.x = start_pos.x + offset
+		var target_x = start_pos.x + offset
+		position.x = target_x

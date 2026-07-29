@@ -1,14 +1,14 @@
 {
   "version": 1,
   "goal": {
-    "id": "8cd40681-f7d9-40d7-8556-ec87a2a2a982",
+    "id": "a3129614-4ce3-40fe-9861-c7a14f2c1eda",
     "sessionID": "ses_053714cd9ffeDDYTzJIX6HkaGw",
-    "objective": "flying的敌人过小，而且打出的子弹没法造成伤害 此外就是左右移动的板子跳上去就掉下来，优化",
+    "objective": "近战弹反子弹需要对飞行敌人造成伤害的，优化，然后就是目前任务如果一直按住 d或者右往前走，任务应该越跑快",
     "status": "active",
     "tokensUsed": 0,
     "timeUsedSeconds": 0,
-    "createdAt": 1785326060,
-    "updatedAt": 1785326060,
-    "lastStartedAt": 1785326060
+    "createdAt": 1785331312,
+    "updatedAt": 1785331312,
+    "lastStartedAt": 1785331312
   }
 }

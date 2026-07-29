@@ -65,10 +65,10 @@ func _ready():
 	monitorable = true
 	
 	start_x = position.x
-	scale = Vector2(2.2, 2.2)  # 巨型 Boss 体型
+	scale = Vector2(3.3, 3.3)  # 巨型 Boss 体型（放大1.5倍: 2.2→3.3）
 	
 	var shape = RectangleShape2D.new()
-	shape.size = Vector2(28, 38)
+	shape.size = Vector2(42, 56)
 	var col = CollisionShape2D.new()
 	col.shape = shape
 	add_child(col)
@@ -151,30 +151,38 @@ func _draw():
 	var fill_color = Color(0.1, 0.85, 0.3) if hp_ratio > 0.4 else Color(0.95, 0.15, 0.15)
 	draw_rect(Rect2(bar_pos.x, bar_pos.y, fill_w, bar_h), fill_color)
 
-func hit_by_batarang():
+func hit_by_batarang(damage: int = 1):
 	"""受到蝙蝠飞镖攻击"""
+	_apply_damage(damage, "-1 💥")
+
+func hit_by_melee(damage: int = 2):
+	"""受到蝙蝠侠右键近战重创切割"""
+	_apply_damage(damage, "-2 ⚔️ CRITICAL!")
+
+func _apply_damage(damage: int, text_str: String):
 	if not alive or invincible_timer > 0:
 		return
 		
-	hp -= 1
-	invincible_timer = 0.3
+	hp -= damage
+	invincible_timer = 0.25
 	
 	# 受击闪白 (Hit Flash) & 震动停顿
-	modulate = Color(2.5, 2.5, 2.5)
+	modulate = Color(3.5, 3.5, 3.5)
 	var flash_tween = create_tween()
-	flash_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.1)
+	flash_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.12)
 	
 	var game = get_tree().current_scene
 	if game and game.has_method("add_camera_shake"):
-		game.add_camera_shake(8.0, 0.18)
+		game.add_camera_shake(12.0, 0.22)
 	if game and game.has_method("trigger_hit_stop"):
-		game.trigger_hit_stop(0.04)
+		game.trigger_hit_stop(0.06)
 		
 	if game and game.has_method("_spawn_floating_text"):
-		var text = "-1 💥" if hp > 0 else "💥 BOSS DOWN!"
-		game._spawn_floating_text(global_position, text, Color(1.0, 0.3, 0.2))
+		var display_text = text_str if hp > 0 else "💥 BOSS DOWN!"
+		game._spawn_floating_text(global_position, display_text, Color(1.0, 0.2, 0.2))
 		
 	if game and game.has_method("_spawn_particle_burst"):
+		game._spawn_particle_burst(global_position, Color(0.3, 0.9, 1.0))
 		game._spawn_particle_burst(global_position, Color(1.0, 0.85, 0.1))
 		
 	if hp <= 0:

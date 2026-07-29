@@ -27,13 +27,14 @@
 | 文件 | 类 | 类型 | 职责 |
 |------|-----|------|------|
 | `Game.gd` | — | `Node2D` | 状态机、关卡构建、Camera(自定义lerp)、HUD(StyleBoxFlat)、暂停、最高分、飘字特效、碰撞响应 |
-| `Player.gd` | — | `CharacterBody2D` | 输入处理(WASD/Space/左键)、物理、朝向翻转_draw、受伤/无敌/死亡、智能重绘(needs_redraw) |
+| `Player.gd` | — | `CharacterBody2D` | 输入处理(WASD/Space/左键/右键/H)、物理、朝向翻转_draw、近战斩击/弹反、受伤/无敌/死亡、智能重绘(needs_redraw) |
 | `Boss.gd` | — | `Area2D` | 小丑大 Boss AI (10 HP、头顶动态血条、狂暴二阶段、狂笑扑克弹幕、击败爆裂动画) |
 | `JokerCard.gd` | — | `Area2D` | 小丑狂笑扑克牌弹幕、自旋动画、击中玩家伤害检测 |
 | `Batarang.gd` | — | `Area2D` | 蝙蝠侠飞镖、高速飞行自旋双翼矢量绘制、击中敌/Boss 爆裂消灭 |
-| `Enemy.gd` | — | `Area2D` | 地面巡逻 AI、蘑菇怪矢量绘制(阴影/眉毛/大眼)、踩头判定、压扁动画 |
-| `FlyEnemy.gd` | — | `Area2D` | 飞行蝙蝠怪物 AI、正弦波浮动巡逻绘制 |
-| `Coin.gd` | — | `Area2D` | 浮动动画(bobbing)、椭圆多边形绘制、双保险碰撞检测、收集飞走动画 |
+| `Enemy.gd` | — | `Area2D` | 地面巡逻 AI、像素蘑菇怪(14x12)、踩头判定、压扁动画 |
+| `FlyEnemy.gd` | — | `Area2D` | 飞行蝙蝠怪物 AI、像素无人机(16x16)+螺旋桨动画 |
+| `FlyEnemyBullet.gd` | — | `Area2D` | 飞行敌人能量子弹（支持近战弹反 `deflect()`） |
+| `Coin.gd` | — | `Area2D` | 浮动动画(bobbing)、8帧像素旋转动画、双保险碰撞检测、收集飞走动画 |
 | `Hazard.gd` | — | `Area2D` | 地刺陷阱、玩家触碰伤害判定 |
 | `MovingPlatform.gd` | — | `AnimatableBody2D` | 动态升降/左右移动单向平台 |
 | `TestRunner.gd` | — | `SceneTree` | 800 帧全自动游玩压测、帧率监控、白闪诊断与渲染快照脚手架 |
@@ -80,6 +81,25 @@ platform_floor_layers = 2  # 告诉move_and_slide: 图层2的StaticBody2D是单�
 ```
 
 **物理机制**: `move_and_slide()` 检查 `platform_floor_layers`，只把对应图层的 StaticBody2D 当作"单向地板"——从上方落上站住，从下方穿过无碰撞。不需要修改 CollisionShape2D 本身的参数。
+
+---
+
+## 2.5 节点组 (Group) 约定表
+
+所有节点通过 `add_to_group()` 加入以下组，用于批量查找和攻击检测：
+
+| 组名 | 节点 | 用途 |
+|------|------|------|
+| `"player"` | Player (CharacterBody2D) | 玩家角色标识 |
+| `"enemies"` | Enemy, FlyEnemy, Boss | 所有敌方单位（含 Boss） |
+| `"bosses"` | Boss | 仅 Boss，用于单独检测 |
+| `"enemy_projectiles"` | JokerCard, FlyEnemyBullet | 敌方弹幕，用于近战弹反 / 飞镖摧毁 |
+| `"batarangs"` | Batarang | 蝙蝠飞镖自检（防重复击中同目标） |
+| `"coins"` | Coin | 金币收集检测 |
+| `"hazards"` | Hazard | 地刺陷阱伤害检测 |
+| `"drifting_clouds"` | 背景云朵 Sprite2D | 云层飘动控制 |
+
+**规范**: 新增任何可交互节点都必须加入对应的组，否则批量攻击/弹反/收集检测会失效。
 
 ---
 
@@ -411,14 +431,25 @@ for i in range(3):
 
 | 操作 | 方法 | 原因 |
 |------|------|------|
-| 跳跃 | `_unhandled_input` + `is_action_pressed` | 一次触发，精确响应，不丢帧 |
+| 跳跃 | `_input` + `is_action_pressed` | `_input` 优先于 GUI 传递，避免 HUD Panel `mouse_filter` 拦截 |
 | 左右移动 | `_physics_process` + `Input.get_axis()` | 连续状态读取，平滑 |
+| 飞镖/近战 | `_input` + `InputEventMouseButton` | 鼠标左键/右键必须在 GUI 层面之前被捕获 |
+| 暂停 | `_unhandled_input` + `ui_cancel` | 暂停不应被 HUD 拦截 |
 | 菜单确认 | `_process` + `Input.is_action_just_pressed` | 简单轮询 |
 | 窗口失焦 | `_notification` + `NOTIFICATION_WM_WINDOW_FOCUS_OUT` | 系统级通知 |
 
-**防抖/守卫链** (Player._unhandled_input):
+**为什么用 `_input` 而非 `_unhandled_input`**：HUD 的 `Panel` 节点默认 `mouse_filter = MOUSE_FILTER_STOP`，会吞噬鼠标事件。`_input` 在 GUI 处理之前被调用，确保左键飞镖和右键近战不会被 HUD 层拦截。
+
+**防抖/守卫链** (Player._input):
 ```
 is_dead → input_disabled → just_spawned → is_on_floor()
+```
+
+**窗口失焦防护**:
+```gdscript
+func _notification(what):
+    if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+        Input.flush_buffered_events()
 ```
 
 ---
@@ -433,7 +464,7 @@ is_dead → input_disabled → just_spawned → is_on_floor()
 | 跳跃高度 | ≈128px | `530²/(2×1100)` |
 | `invincible_timer` | 1.5s | 受伤无敌时间 |
 | `GROUND_Y` | 550 | 地面Y坐标 |
-| `LEVEL_WIDTH` | 1632 | 关卡宽度 |
+| `level_width` | 动态(每关不同) | 关卡宽度（由 Game.gd 创建 Player 时赋值 `player_node.level_width = level_cfg["width"]`） |
 | `blink_timer` | 0.6s | 闪烁周期 |
 | 踩头弹跳 | -380 | 踩到敌人后弹起速度 |
 | 受伤击退 | -250 + 反向200 | 受伤后弹开 |
@@ -641,7 +672,39 @@ if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get
 **原理**: 物理帧 60FPS，动画每 2 帧重绘一次 → 实际动画 30FPS。减少 50% 的 `_draw()` 调用量。
 **效果**: 动画肉眼仍然流畅（30FPS 对 2D 矢量动画已足够），大幅降低 Process CPU 开销。
 
-### 9.11 Game.gd 视觉调优
+### 9.11 蝙蝠侠物理反馈动画（Stretch/Squash + 落地烟尘）
+
+```gdscript
+# Player.gd _physics_process — 起跳拉伸/落地挤压 + 烟尘颗粒
+# 落地挤压（横向拉伸，纵向压扁）
+if currently_on_floor and not was_on_floor:
+    scale = Vector2(1.42, 1.08)
+    _spawn_landing_dust()
+    game.add_camera_shake(2.0, 0.08)
+
+# 起跳纵向拉伸
+if jump_buffer_timer > 0 and coyote_timer > 0:
+    scale = Vector2(1.08, 1.45)
+
+# 每帧平滑回弹到标准体型 1.25x
+scale = scale.lerp(Vector2(1.25, 1.25), 14.0 * delta)
+
+func _spawn_landing_dust():
+    # 在脚底生成 4-6 个金色小方块，向外扩散 + 淡出
+    for i in range(randi_range(4, 6)):
+        var p = ColorRect.new()
+        p.size = Vector2(3, 3)
+        p.color = Color(0.9, 0.75, 0.3, 0.7)
+        p.position = position + Vector2(randf_range(-8, 8), 18)
+        get_parent().add_child(p)
+        # Tween：扩散 20px + 淡出 0.3s → queue_free
+```
+
+**效果**: 起跳时 `scale = Vector2(1.08, 1.45)` 纵向拉伸；落地挤压 `Vector2(1.42, 1.08)` 反弹。配合 `lerp` 平滑回位，提供类 Celeste 的物理反馈感。
+
+**落地烟尘粒子**: 使用临时 `ColorRect`（零依赖外部粒子系统），Tween 驱动扩散 + 淡出后自动清理。
+
+### 9.12 Game.gd 视觉调优
 
 | 改动 | 作用 |
 |------|------|
@@ -651,7 +714,7 @@ if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get
 | 摩天大楼透明度增加 + 窗口固定化 | 降低节点膨胀，避免随机种子不一致 |
 | 蝙蝠探照灯透明度 0.12 → 0.08 | 更低调柔和 |
 
-### 9.12 TestRunner 自动化性能测试框架
+### 9.13 TestRunner 自动化性能测试框架
 
 ```gdscript
 # TestRunner.gd — 从简单截图工具升级为完整性能测试框架
@@ -680,7 +743,7 @@ if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get
 
 **JSON 快照**: 测试完成后保存 `res://screenshots/` 下截图 + `.monitor_snapshot.json` 性能数据。
 
-### 9.13 TestRunner 性能优化 — 延迟截图落盘
+### 9.14 TestRunner 性能优化 — 延迟截图落盘
 
 ```gdscript
 # 优化前：每帧截图时直接 save_png → 磁盘 I/O 阻塞主线程
@@ -701,13 +764,89 @@ func _save_all_pending_captures():
 
 ---
 
+### 9.15 蝙蝠飞镖系统 (Batarang)
+
+```gdscript
+# Batarang.gd — 蝙蝠飞镖纯代码子弹
+extends Area2D
+
+const SPEED = 650.0
+const MAX_RANGE = 550.0
+
+func _ready():
+    add_to_group("batarangs")      # 自检组，防重复击中
+    collision_mask = 1             # 检测 Layer 1 敌人/地面
+    monitoring = true
+    monitorable = false            # 不被别的物体检测到
+```
+
+**行为逻辑**:
+- 朝鼠标方向发射，通过 `facing_right` 和鼠标位置比对决定方向
+- `_physics_process` 中每帧位移 `SPEED * delta`，累计 `distance_traveled`
+- 超过 `MAX_RANGE` 自动销毁（`_destroy_with_effect(false)`）
+- `area_entered` → 检测 `enemies` 组 → 调用 `hit_by_batarang()`
+- `body_entered` → 检测 `StaticBody2D` 墙壁 → `_destroy_with_effect(true)`
+
+**销毁流程** (`_destroy_with_effect(hit_something)`):
+```gdscript
+func _destroy_with_effect(hit_something: bool):
+    set_physics_process(false)
+    monitoring = false          # 立即停止碰撞检测
+    if hit_something:
+        game._spawn_particle_burst(position, Color(1.0, 0.85, 0.2))
+    # Tween 缩放淡出 → queue_free
+```
+
+**碰撞体**: `RectangleShape2D(20×12)`，自旋时视觉旋转不影响碰撞体。
+
+### 9.16 视差滚屏背景系统 (Parallax)
+
+`Game.gd._create_world()` 中构建 4 层背景：
+
+| 层 | 内容 | 视差比 | 元素 |
+|----|------|--------|------|
+| Layer 0 | 深空底色 + 月亮 | 固定 | 65px 暖色像素月亮，天空底色 `0.12,0.16,0.28` |
+| Layer 1 | 远景摩天大楼 | `(0.08, 0.02)` | 1600px 循环复用的像素大楼纹理，带固定窗光 |
+| Layer 2 | 中景大楼 + 浮云 | `(0.22, 0.05)` | 像素大楼 + 5 朵柔和半透云层加入 `drifting_clouds` 组 |
+| Layer 3 | 近景管道护栏 | `(0.55, 0.10)` | 像素管道纹理，1600px 循环复用 |
+
+**探照灯 (BatSignal)**: 在 Layer 0 上方绘制，`_process` 中 `sweep_angle = sin(time * 0.8)` 摇摆，光束顶部与蝙蝠黑影投影重合。
+
+**实现细节**:
+- 使用 `ParallaxBackground` + `ParallaxLayer` 节点
+- 每个 `ParallaxLayer` 内的 `Sprite2D` 设置 `texture_repeat = true`
+- 云朵通过 `drifting_clouds` 组在 `_process` 中缓慢右移
+
+### 9.17 关卡配置系统 (LEVEL_CONFIGS)
+
+`Game.gd` 定义 `LEVEL_CONFIGS` 字典，每个关卡配置包含：
+
+```gdscript
+var LEVEL_CONFIGS = {
+    1: { "width": 1632, "coins": [...], "ground_enemies": [...], 
+        "fly_enemies": [...], "platforms": [...], "moving_platforms": [...],
+        "hazards": [...], "boss": false },
+    5: { "width": 5000, "coins": [...], "ground_enemies": [...], 
+        "fly_enemies": [...], "platforms": [...], "moving_platforms": [...],
+        "hazards": [...], "boss": true },  # 第五关有 Boss
+}
+```
+
+**构建流程** (`_create_world()`):
+1. 读取 `level_cfg = LEVEL_CONFIGS[current_level]`
+2. 赋值 `player_node.level_width = level_cfg["width"]`
+3. 按顺序生成：地面 → 背景(parallax) → 平台(StaticBody2D) → 移动平台(AnimatableBody2D) → 地刺 → 金币 → 地面敌人 → 飞行敌人 → 终点传送门
+4. 如果 `boss = true`，在关卡末尾生成 Boss
+
+---
+
 ## 10. 已知局限 & 可优化方向
 
 - **Enemy 是 Area2D**：用 `position.x += SPEED * direction * delta` 而非 `move_and_slide()`，这意味着敌人不受重力/碰撞影响。目前敌人固定在地面Y巡逻，但如果要放在平台上，需要重构为 CharacterBody2D
 - **掉落死亡**：防物理Bug的保守方案（`y > GROUND_Y+100` 触发 `_on_player_hit`），没有专门的"掉坑"关卡设计
 - **纯代码构建**：所有节点动态创建，没有 .tscn 场景，便于 AI 修改但缺少可视化编辑
 - **`die()` 方法未使用**：Player 有 `die()` 方法但当前逻辑不触发死亡动画（命数耗尽直接弹出 Game Over 界面）
-- **无音效/粒子**：纯视觉反馈
+- **无音效**：纯视觉反馈（无背景音乐/SFX），但有粒子爆裂特效和落地烟尘颗粒
 
 ---
 
@@ -838,7 +977,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 
 本项目的所有踩坑记录分类汇总，方便快速查找原因和最佳方案。
 
-### 10.1 碰撞系统
+### 12.1 碰撞系统
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -847,7 +986,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 浮动金币碰撞体不同步 | 金币浮动穿模，玩家碰不到 | 用 `_process`（渲染帧）驱动位置，PhysicsServer 没跟上 | 用 `_physics_process` 驱动，物理帧同步 |
 | 踩头判定不准 | 有时踩到却受伤 | 只用 `body_entered` 信号不够细 | 双条件：`stomp_from_fall`（下落中）+ `stomp_from_above`（玩家 Y < 敌人 Y） |
 
-### 10.2 Camera 镜头
+### 12.2 Camera 镜头
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -855,7 +994,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 关平滑→瞬移→开平滑 | 画面卡顿 | 多余的三步 hack | 仅用 `lerp(a, b, 12*delta)` 自然逼近 |
 | 镜头不限制边界 | 看到关卡外黑色区域 | 没设 `limit_*` | `limit_left/right/top/bottom` 限制镜头范围 |
 
-### 10.3 绘制
+### 12.3 绘制
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -863,7 +1002,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 绘制闪烁 | `_draw()` 内容一闪一闪 | `queue_redraw()` 调用太频繁 | 设置 `needs_redraw` 标志：只有 alpha（无敌）/ 朝向变了才重绘 |
 | 朝向翻转不对 | 绘制内容镜像反了 | 仅翻转 `scale.x` 导致绘制坐标也跟着反 | 绘制代码用 `facing_right` 控制坐标符号：`if !facing_right: draw_circle(Vector2(-x,y))` |
 
-### 10.4 Tween 动画
+### 12.4 Tween 动画
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -871,7 +1010,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 飘字残留在场景中 | Label 越来越多 | Tween 回调未清理节点 | `chain().tween_callback(func(): label.queue_free())` 自动清理 |
 | 动画结束后抖动 | 飘字淡出后仍然有残留 | `set_parallel(true)` 的 Tween 被提前释放 | `create_tween()` 而非 `Tween.new()`，让 Tween 自管理生命周期 |
 
-### 10.5 输入处理
+### 12.5 输入处理
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -879,7 +1018,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 跳跃触发两次 | 按一次跳两下 | `_input` + `_unhandled_input` 同时接到事件 | 守卫链：`is_dead → input_disabled → just_spawned → is_on_floor()` |
 | 暂停后跳跃残留 | 取消暂停立刻跳起 | 暂停期间 Space 被缓存 | 暂停/恢复时 `Input.flush_buffered_events()` |
 
-### 10.6 状态管理
+### 12.6 状态管理
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
@@ -887,14 +1026,14 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 状态守卫混乱 | 同时触发胜利和 Game Over | 没有排他状态判断 | 在 `_process` 开头用 `match state:` 分支，每个状态互斥 |
 | pause 后 tween 也停了 | 暂停时飘字/闪烁也卡住 | `get_tree().paused` 默认暂停所有 `SceneTreeTimer` 和 Tween | Tween 设置 `set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)` 或暂停仅冻结物理 |
 
-### 10.7 持久化
+### 12.7 持久化
 
 | 问题 | 现象 | 原因 | 最佳方案 |
 |------|------|------|---------|
 | `ConfigFile` 路径写死 | 用户电脑没有该路径 → 读文件失败 | 用了绝对路径 | 用 `user://` 前缀自动映射到平台特定目录 |
 | 最高分在不同机器上不共享 | 换电脑分数丢了 | 这不是 Bug，是设计预期 | `user://high_score.cfg` 存本地即可，无需云同步 |
 
-### 10.8 通用 Godot 实践
+### 12.8 通用 Godot 实践
 
 | 最佳实践 | 说明 |
 |---------|------|
@@ -906,8 +1045,19 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | `_physics_process` 驱动物理相关位置 | 非渲染帧驱动的 `position` 变化才能被 PhysicsServer 感知 |
 | 状态机用 `enum + match` | 比字符串比较更类型安全，性能更好 |
 
-### 10.9 TestRunner.gd 与自动化游玩压测踩坑汇总
+### 12.9 TestRunner.gd 与自动化游玩压测踩坑汇总
 
+TestRunner 包含 **5 个白闪/幽灵帧诊断模块**，在帧循环中并行检测：
+
+| 模块 | 检测内容 | 触发条件 |
+|------|---------|----------|
+| 1. Delta Spike | Process 耗时 > 20ms & FPS < 50 | 帧率卡顿 |
+| 2. Camera 镜头跳变 | Camera 位置 delta > 2.0  | 背景撕裂风险 |
+| 3. 幽灵帧 (Ghost Frame) | 活跃节点数骤减 > 15 （`queue_free` 前残留绘制） | Tween 回调中节点已释放 |
+| 4. 多边形退化 (Winding Order) | 记录每帧 `draw_polygon` 调用次数 | 频繁重绘消耗 CPU |
+| 5. 像素采样白闪检测 | 中心+四角 5 点像素采样，亮度 > 0.95 触发白闪事件记录 | GPU 渲染异常 |
+
+**已知踩坑**:
 | 问题 / 踩坑点 | 现象 | 原因 | 最佳解决方案 |
 |------|------|------|---------|
 | CLI 快照截图全黑/返回 null | `root.get_texture().get_image()` 截取为黑屏 | 命令行加了 `--headless` 参数使用 dummy 渲染器，不输出视口纹理 | 移除 `--headless`，改用 `--rendering-driver opengl3` 命令行驱动跑测试 |
@@ -918,7 +1068,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 背景 ColorRect 节点膨胀推高 SceneTree 开销 | 节点数从 65 暴涨至 150+ | 在 `_create_world()` 中用循环大量生成小 Window `ColorRect` 节点 | 限制窗口灯光节点数量，或采用单个 Node2D `_draw()` 统一绘制背景 |
 | EXE 打包提示 `game.tmp` 无法重命名失败 | `--export-release` 导出提示失败 | `build/game.exe` 已经在后台运行中，文件被 Windows 系统锁住 | 在打包前执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留进程 |
 
-### 10.10 偶发白闪防范与 2D 多边形绘制规范
+### 12.10 偶发白闪防范与 2D 多边形绘制规范
 
 | 风险点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
@@ -927,7 +1077,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | Camera `lerp` 镜头步幅突变 | 画面边缘瞬间白闪 (露底) | 帧率掉帧导致 `delta` 突大，`12.0 * delta` 溢出导致 Camera 坐标跳变，背景 `ColorRect` 与视口脱节露出默认 Clear Color | 在 Camera 移动插值中使用 `clamp(12.0 * delta, 0.0, 1.0)` 限制单帧最大跟随步幅 |
 | 护臂刺刺/局部多边形坐标算错 | 转向时刺刺穿透身体拉成大狭长线段 | 护臂刺刺误用了 `Vector2(-15 * flip)` 导致 left_arm (x=-12) 刺向右边 (+15)，跨越全身 | 左右两侧手臂分别独立计算固定绘制坐标，不直接对局部 X 坐标做盲目乘 `flip` 运算 |
 
-### 10.11 单向平台与多关卡边界陷阱
+### 12.11 单向平台与多关卡边界陷阱
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
@@ -935,21 +1085,21 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 跨关长地图横向坐标卡死 | 进入 Level 2 (2400px) 或 Level 5 (5000px) 后，玩家在 x=1620.0 处被隐形墙锁死无法前进 | `Player.gd` 中硬编码了 `const LEVEL_WIDTH = 1632`，并在 `_physics_process` 中使用了 `clamp(position.x, 12, LEVEL_WIDTH - 12)` | 将 `LEVEL_WIDTH` 重构为动态变量 `var level_width`，并在 `Game.gd` 创建玩家时实时赋值 `player_node.level_width = level_cfg["width"]` |
 | 地面陷阱区域死胡同 | 玩家不小心掉落到地面后，无论怎么按跳跃都无法跳回高处平台 | 蝙蝠侠极限起跳高度为 `127.7px` (`v=-530, g=1100`)。若地面上方主平台 `y <= 400`（距地面 140px+），落入地面的玩家将陷入物理不可逆的死胡同 | 地面所有地刺/陷阱空隙旁均需布置 `y = 465`（距地面仅 85px）的登高梯低平台，保障掉落后 100% 可跳跃攀爬复活 |
 
-### 10.12 关卡难度扩展与敌人密度平衡规范
+### 12.12 关卡难度扩展与敌人密度平衡规范
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
 | 关卡拉长后怪物密度下降 (密度稀释) | 越往后关卡越空旷，感觉难度不升反降 | 扩展地图长度 (如 1632px $\rightarrow$ 5000px) 时，怪物生成数量未按比例同步增加，导致密度从 3.75个/1000px 降至 3.20个/1000px | 制定**每千像素密度递增指标**：Level 1~2 控制在 3.0~3.8 个/1000px，Level 3~5 依次提升至 5.0、5.0、4.8 个/1000px |
 | 关卡末段无怪空白盲区 | 接近终点线数百像素内怪物完全消失 | 手动配置敌人生成点数组时，最大 `x` 坐标止步于 `4250px`，距离 `5000px` 终点残留了 750px 的空旷地带 | 敌人生成 `x` 坐标必须覆盖至 `LEVEL_WIDTH - 350px` 的关卡前沿区域，禁止留下 >300px 的无怪空白区 |
 
-### 10.13 鼠标点击事件拦截与输入管道规范
+### 12.13 鼠标点击事件拦截与输入管道规范
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
 | GUI Panel 吸收鼠标左键导致飞镖无法发射 | 在游戏画面中点击鼠标左键无任何响应，飞镖无法发射 | 视口上方顶层 HUD 的 `Panel` 或 `Control` 节点默认 `mouse_filter = MOUSE_FILTER_STOP`，吞噬了所有鼠标点击事件，导致 `Player._unhandled_input()` 永远无法收到左键事件 | 1. 在 HUD `Panel` 上显式设置 `panel.mouse_filter = Control.MOUSE_FILTER_IGNORE`；<br>2. 玩家节点攻击响应统一改用 `_input(event)`（优先于 GUI 传递层级处理）。 |
 | 鼠标左键发射方向与朝向脱节 | 点击左侧画面时飞镖依然朝右射出 | 发射飞镖时仅读取了 `facing_right` 变量，未根据鼠标在全局场景中的 `get_global_mouse_position()` 坐标实时判定 | 在 `shoot_batarang()` 中比对 `mouse_pos.x` 与 `global_position.x`，自动将 `facing_right` 转向鼠标所在方位，实现指哪打哪。 |
 
-### 10.14 AAA 主菜单解耦与 Bat-Signal 探照灯背景踩坑汇总
+### 12.14 AAA 主菜单解耦与 Bat-Signal 探照灯背景踩坑汇总
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
@@ -957,10 +1107,133 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 探照灯摇摆光束与云层徽标不同步 | 光束往左摇，但云层上的蝙蝠黑影在右边 | 探照灯光束与云层 Bat Silhouette 顶点独立计算了不同的 `sweep_angle` 偏移量 | 在 `BatSignalBeam` 的 `_draw()` 回调中统一使用相同的 `top_center = Vector2(base_x + sin(sweep_angle) * range, top_y)` 坐标基准，确保光束顶端与云层 Projection Emblem 100% 紧密重合。 |
 | `--export-release` 导出 `game.tmp` 无法重命名失败 | 执行导出命令提示 Error Code 1 失败 | 导出的目标可执行文件 `build/game.exe` 正在 Windows 系统后台中运行，句柄被系统进程占用锁住 | 导出前必须执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留游戏进程后再执行导出命令。 |
 
-### 10.16 移动平台 AnimatableBody2D 物理同步与飞行怪远程子弹规范
+### 12.15 本次修复的三个 Bug
+
+| 问题 | 现象 | 根因 | 解决方案 |
+|------|------|------|---------|
+| 飞行敌人太小 | FlyEnemy 16×16 像素显示太小 | 像素化后未设置 `sprite.scale` | 加 `sprite.scale = Vector2(2.0, 2.0)` |
+| 飞行敌人子弹无伤害 | 击中玩家无反应 | `FlyEnemyBullet.gd` 缺少 `CollisionShape2D`，Area2D 无法检测 body_entered 信号 | 添加 `CircleShape2D(radius=6)` 碰撞体 |
+| 移动平台跳上去掉下来 | 水平移动的平台玩家无法站在上面 | `col.one_way_collision = true` 与 Player 的 `platform_floor_layers = 2` 双重复盖，`AnimatableBody2D` 动态运动中互相冲突 | 去掉 MovingPlatform 的 `one_way_collision`，只依赖 Player 侧的 `platform_floor_layers = 2`（CharacterBody2D 专属单向平台机制） |
+
+### 12.16 移动平台 AnimatableBody2D 物理同步与飞行怪远程子弹规范
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
 | `StaticBody2D` 移动平台导致玩家穿模坠落或无法跟随 | 左右平移平台玩家无法跟随；上下升降平台踏上去瞬间穿透单向面坠落 | `StaticBody2D` 仅用于固定建筑，不计算平台运动速度 (`get_platform_velocity`)，无法与 `CharacterBody2D` 物理同步 | 移动平台必须继承 **`extends AnimatableBody2D`**，并在 `_ready()` 中显式开启 **`sync_to_physics = true`**！`CharacterBody2D` 会自动读取平移速度并平滑跟随。 |
+| 单向平台水平侧面卡死 | 玩家跃至平台同高度时在水平方向被平台左/右侧边缘阻挡卡住 | `col.one_way_collision = true` 仅阻止从下方穿过，水平方向仍然硬碰撞 | 必须设置 `col.one_way_collision_margin = 4.0` 给 4px 容差，且使用增量位移而非直接赋值 position 让 AnimatableBody2D 正确计算速度矢量 |
+| 平台高速移动时玩家甩落 | 平台快速往返时玩家跟不上被抛下 | `one_way_collision_margin` 容差不够 | 设置 `col.one_way_collision_margin = 4.0`（MovingPlatform.gd:25） |
 | 飞行怪子弹与 Coin 旋转索引越界 | 报错 `Out of bounds get index '3'` | GDScript 中负数浮点转 int 求模 (`-1 % 8`) 会返回负数索引 | 在获取数组纹理索引时，统一使用 **`posmod(int_val, array.size())`**，安全防范负数与越界风险！ |
+
+---
+
+### 12.17 近战斩击动效非线性优化 (2026-07-29)
+
+**背景**: 原来的近战斩击动画采用线性进度 (`slash_progress = 1.0 - timer/duration`)，挥砍轨迹匀速匀速缺乏力道感。
+
+**优化内容**:
+
+| 方面 | 改前 | 改后 |
+|------|------|------|
+| **动画曲线** | 线性 `0→1` | **Ease-out cubic** `1.0 - pow(1.0 - raw_t, 2.8)` — 先快后慢，模拟真实蓄力释放 |
+| **残影** | 单层月牙 | **三重残影拖尾** (ghost_layer 0/1/2)，每层 0.05s 延时叠加，产生速度加成的动感 |
+| **月牙多边形** | 14 段 + 简单圆弧 | 16 段 + 增宽内外差 (`inner_r + t * 18.0`)，外层电光 + 核心亮白 + **金色刃辉勾勒** |
+| **淡出** | 线性淡出 | 尾部缓出淡出 `1.0 - pow(raw_t, 1.6) * 1.2` |
+| **扫角范围** | `-0.75π → 0.45π` | `-0.85π → 0.55π` 更大扫角覆盖，增强打击感 |
+
+**性能注意**: 三重残影只在攻击帧计算，每层 steps=8 降低顶点数（比主月牙 16 步更轻量），总开销可控。
+
+**核心代码** (`Player.gd _draw` 第 175-230 行):
+```gdscript
+var raw_t = 1.0 - (melee_anim_timer / MELEE_ANIM_DURATION)
+var slash_progress = 1.0 - pow(1.0 - raw_t, 2.8)  # ease-out cubic
+
+# 三重残影
+for ghost_layer in [0, 1, 2]:
+    var ghost_offset = 0.05 * float(ghost_layer + 1)
+    var ghost_t = max(raw_t - ghost_offset, 0.0)
+    ...
+```
+
+### 12.18 子弹弹反系统 (Bullet Deflect)
+
+**功能**: 近战斩击时（`melee_attack()`），不仅能摧毁敌方弹幕，还能**反向弹回**，化为友方攻击。
+
+**实现要点**:
+
+| 维度 | 规范 |
+|------|------|
+| **检测范围** | 130px（比飞镖 110px 更宽容） |
+| **触发方式** | 近战斩击时遍历 `enemy_projectiles` 组，有 `deflect()` 方法则调用 |
+| **弹反效果** | `direction *= -1.0` 反弹回敌人；`collision_mask = 0` 不再伤害玩家 |
+| **视觉反馈** | 双倍粒子爆裂 (`_spawn_particle_burst` 青色+金色)；弹幕变色为青蓝色 |
+| **弹幕类型** | `FlyEnemyBullet.gd` + `JokerCard.gd` 均支持 |
+
+**`deflect()` 协议**:
+```gdscript
+# 每个敌方弹幕必须实现的弹反方法
+func deflect():
+    direction *= -1.0     # 反转方向
+    collision_mask = 0    # 不再伤害玩家
+    deflected = true      # 变色标记
+    queue_redraw()        # 刷新为友方颜色
+```
+
+**判定宽容原则**: 检测范围 130px > 飞镖 110px，配合 ease-out 弧线的"先快"阶段，让弹幕在刀光初段就被击飞，大幅降低弹反门槛，手感从容。
+
+### 12.19 伤害协议 API (Damage Protocol)
+
+所有可受伤对象实现以下方法，攻击系统通过 `has_method()` 检测后调用：
+
+| 方法 | 实现者 | 效果 |
+|------|--------|------|
+| `hit_by_batarang()` | Enemy, FlyEnemy, FlyEnemyBullet | 被飞镖击中：爆裂粒子 + queue_free |
+| `hit_by_batarang(damage: int = 1)` | Boss | Boss 扣 1 HP（默认），HP ≤ 5 进入狂暴 |
+| `hit_by_melee(damage: int = 2)` | Boss | Boss 被近战斩击扣 2 HP（重创） |
+| `deflect()` | FlyEnemyBullet, JokerCard | 被近战弹反：反向飞回，变色为青蓝色友方弹幕 |
+
+**Boss 血量规则**:
+- 总 HP = 10
+- `hit_by_batarang(1)` → 扣 1 HP（飞镖伤害）
+- `hit_by_melee(2)` → 扣 2 HP（近战重创）
+- HP ≤ 5 → BOSS 进入**狂暴二阶段**：紫色气场（`Color(0.9, 0.1, 0.8, 0.25)`），移动速度 105→170，射击间隔 1.9→1.1 秒
+- `alive` 标志位控制 Boss 是否存活；死亡触发 `die()`：爆裂粒子+动画→queue_free
+
+**JokerCard 弹幕参数**:
+- 抛射速度 ~320px/s，bobbing 偏移 40px
+- 自旋动画 6.0 rad/s，击中玩家扣血
+- 进入 `enemy_projectiles` 组，支持 `deflect()` 弹反
+
+**弹幕 `deflect()` 协议**:
+```gdscript
+func deflect():
+    direction *= -1.0     # 反转方向
+    collision_mask = 0    # 不再伤害玩家
+    deflected = true      # 变色标记
+    queue_redraw()        # 刷新为青蓝色友方外观
+```
+
+### 12.20 Camera Shake 镜头震动与 Hit Stop 卡肉系统
+
+Game.gd 提供两个打击感辅助函数，供攻击代码调用：
+
+```gdscript
+# 镜头震动 — 随 intensity 衰减
+func add_camera_shake(intensity: float, duration: float = 0.15):
+    camera_shake_intensity = intensity
+    shake_timer = duration
+
+# 卡肉停顿 — 短暂冻结游戏 tick 模拟打击重量感
+func trigger_hit_stop(duration: float = 0.05):
+    hit_stop_timer = duration
+    get_tree().paused = true
+```
+
+**调用时机**:
+| 事件 | Camera Shake | Hit Stop |
+|------|-------------|----------|
+| 近战击中敌人/Boss | `add_camera_shake(6.0~10.0, 0.1~0.15)` | `trigger_hit_stop(0.04)` |
+| 落地 | `add_camera_shake(2.0, 0.08)` | — |
+| 受伤 | `add_camera_shake(5.0, 0.12)` | — |
+
+---
 

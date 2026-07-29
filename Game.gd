@@ -1212,7 +1212,7 @@ func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	shape.size = Vector2(w, h)
 	var col = CollisionShape2D.new()
 	col.shape = shape
-	# 单向平台 (图层2): 只从上方站住，从下方和侧面均可穿过
+	# 图层2 = 单向平台：必须开启 one_way_collision 使玩家从下方可以穿过
 	if collision_layer == 2:
 		col.one_way_collision = true
 	body.add_child(col)

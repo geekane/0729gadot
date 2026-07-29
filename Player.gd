@@ -22,6 +22,14 @@ var jump_buffer_timer = 0.0
 var batarang_cooldown_timer = 0.0
 const BATARANG_COOLDOWN = 0.3  # 0.3s 冷却时间
 
+# 右键近战武器 (Melee Slash)
+var melee_cooldown_timer = 0.0
+const MELEE_COOLDOWN = 0.35      # 冷却 0.35s
+var is_melee_attacking = false   # 正在攻击中（用于绘制）
+var melee_anim_timer = 0.0       # 攻击动画计时
+const MELEE_ANIM_DURATION = 0.22 # 攻击动画持续 0.22s (使斜向大月牙弧光更震撼明显)
+const MELEE_RANGE = 95.0         # 攻击有效距离 (扩大至 95px 覆盖大范围前方/头顶/脚下)
+
 # 动态动画变量 (Animation Parameters)
 var anim_time = 0.0
 var facing_right = true
@@ -163,6 +171,78 @@ func _draw():
 	var eye_color = Color(1.0, 1.0, 0.95) if invincible_timer <= 0 else Color(1.0, 0.3, 0.3)
 	draw_polygon(left_eye, PackedColorArray([eye_color]))
 	draw_polygon(right_eye, PackedColorArray([eye_color]))
+	
+	# 10. 斜向大弧度近战闪光特效 (Diagonal Electric Crescent Light Slash)
+	if is_melee_attacking:
+		var raw_t = 1.0 - (melee_anim_timer / MELEE_ANIM_DURATION)  # 0→1
+		# 非线性缓出 (Ease-out cubic)：先快后慢模拟真实挥砍的蓄力释放感
+		var slash_progress = 1.0 - pow(1.0 - raw_t, 2.8)
+		var outer_r = 78.0
+		var inner_r = 18.0
+		var start_angle = -PI * 0.85 * flip  # 从身后蓄势切入
+		var end_angle = PI * 0.55 * flip     # 大幅扫过前方与头顶脚下
+		var sweep_progress = min(slash_progress * 1.35, 1.0)
+		var sweep_angle = start_angle + (end_angle - start_angle) * sweep_progress
+		var alpha = 1.0 - min(pow(raw_t, 1.6) * 1.2, 1.0)  # 尾部缓出淡出
+		
+		# 10a. 三重残影拖尾 (Ghost Trail — 每层延时叠加以制造动感加速残影)
+		for ghost_layer in [0, 1, 2]:
+			var ghost_offset = 0.05 * float(ghost_layer + 1)  # 每层 0.05s 延时
+			var ghost_t = max(raw_t - ghost_offset, 0.0)
+			if ghost_t <= 0.0:
+				continue
+			var ghost_prog = 1.0 - pow(1.0 - ghost_t, 2.8)
+			var ghost_sweep = min(ghost_prog * 1.35, 1.0)
+			var ghost_angle = start_angle + (end_angle - start_angle) * ghost_sweep
+			var ghost_alpha = (1.0 - min(pow(ghost_t, 1.6) * 1.2, 1.0)) * 0.25 * (1.0 - ghost_layer * 0.3)
+			
+			# 残影月牙
+			var g_outer_pts = PackedVector2Array()
+			var g_inner_pts = PackedVector2Array()
+			for i in range(8):
+				var t = float(i) / 8.0
+				var ang = start_angle + (ghost_angle - start_angle) * t
+				g_outer_pts.append(Vector2(cos(ang), sin(ang)) * outer_r)
+				g_inner_pts.append(Vector2(cos(ang), sin(ang)) * (inner_r + t * 12.0))
+			var g_poly = PackedVector2Array()
+			for p in g_outer_pts: g_poly.append(p)
+			for i in range(g_inner_pts.size() - 1, -1, -1): g_poly.append(g_inner_pts[i])
+			draw_polygon(g_poly, PackedColorArray([Color(0.3, 0.7, 1.0, 0.35 * ghost_alpha)]))
+		
+		# 10b. 主月牙多边形 (Main Crescent Glow Polygon)
+		var outer_pts = PackedVector2Array()
+		var inner_pts = PackedVector2Array()
+		var steps = 16
+		for i in range(steps + 1):
+			var t = float(i) / float(steps)
+			var ang = start_angle + (sweep_angle - start_angle) * t
+			outer_pts.append(Vector2(cos(ang), sin(ang)) * outer_r)
+			inner_pts.append(Vector2(cos(ang), sin(ang)) * (inner_r + t * 18.0))
+			
+		var crescent_poly = PackedVector2Array()
+		for p in outer_pts:
+			crescent_poly.append(p)
+		for i in range(inner_pts.size() - 1, -1, -1):
+			crescent_poly.append(inner_pts[i])
+			
+		# 外层青蓝电光气场
+		draw_polygon(crescent_poly, PackedColorArray([Color(0.15, 0.85, 1.0, 0.55 * alpha)]))
+		
+		# 10c. 核心刀光闪白 + 金色刃辉 (Core White Flash + Gold Edge)
+		var prev_outer = Vector2.ZERO
+		var prev_core = Vector2.ZERO
+		for i in range(steps + 1):
+			var t = float(i) / float(steps)
+			var ang = start_angle + (sweep_angle - start_angle) * t
+			var core_pt = Vector2(cos(ang), sin(ang)) * (outer_r * 0.82)
+			var outer_pt = Vector2(cos(ang), sin(ang)) * outer_r
+			if i > 0:
+				draw_line(prev_outer, outer_pt, Color(0.3, 0.9, 1.0, 0.85 * alpha), 6.0)
+				draw_line(prev_core, core_pt, Color(1.0, 1.0, 1.0, 1.0 * alpha), 3.5)
+				# 金色刃辉勾勒
+				draw_line(prev_core, core_pt, Color(1.0, 0.85, 0.15, 0.7 * alpha), 1.5)
+			prev_outer = outer_pt
+			prev_core = core_pt
 
 func _input(event):
 	if is_dead or input_disabled or just_spawned:
@@ -186,6 +266,11 @@ func _input(event):
 	if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT) or \
 	   (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_J or event.keycode == KEY_K)):
 		shoot_batarang()
+		get_viewport().set_input_as_handled()
+	
+	# 鼠标右键 近战劈砍 (Melee Slash) — 劈砍头顶的飞行敌人
+	if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT):
+		melee_attack()
 		get_viewport().set_input_as_handled()
 
 func _notification(what):
@@ -260,6 +345,9 @@ func _physics_process(delta):
 	if batarang_cooldown_timer > 0:
 		batarang_cooldown_timer -= delta
 		
+	if melee_cooldown_timer > 0:
+		melee_cooldown_timer -= delta
+		
 	if jump_buffer_timer > 0:
 		jump_buffer_timer -= delta
 	
@@ -270,7 +358,7 @@ func _physics_process(delta):
 		jump_buffer_timer = 0.0
 		scale = Vector2(1.08, 1.45)
 	
-	# 无敌闪烁
+	# 无敌闪烁 & 近战动画状态
 	var needs_redraw = false
 	if invincible_timer > 0:
 		invincible_timer -= delta
@@ -281,6 +369,12 @@ func _physics_process(delta):
 	else:
 		if modulate.a != 1.0:
 			modulate.a = 1.0
+			needs_redraw = true
+			
+	if is_melee_attacking:
+		melee_anim_timer -= delta
+		if melee_anim_timer <= 0:
+			is_melee_attacking = false
 			needs_redraw = true
 	
 	# 重力
@@ -373,3 +467,80 @@ func shoot_batarang():
 		parent_world._spawn_particle_burst(batarang.position, Color(1.0, 0.85, 0.2))
 		
 	queue_redraw()
+
+func melee_attack():
+	"""右键斜向大弧度近战斩击：开启即得 0.35s 短暂无敌帧，宽泛判定斩击强敌与弹幕"""
+	if is_dead or input_disabled or melee_cooldown_timer > 0 or is_melee_attacking:
+		return
+		
+	melee_cooldown_timer = MELEE_COOLDOWN
+	is_melee_attacking = true
+	melee_anim_timer = MELEE_ANIM_DURATION
+	
+	# 🌟 开启即处于短时间无敌 (Invincibility Frames during melee slash)
+	invincible_timer = max(invincible_timer, 0.35)
+	queue_redraw()
+	
+	var parent_world = get_parent()
+	var center = global_position
+	var dir = 1.0 if facing_right else -1.0
+	
+	# 特效：在斩击弧线上生成多个青蓝与金光火花
+	if parent_world and parent_world.has_method("_spawn_particle_burst"):
+		parent_world._spawn_particle_burst(center + Vector2(40.0 * dir, -15.0), Color(0.2, 0.95, 1.0))
+		parent_world._spawn_particle_burst(center + Vector2(65.0 * dir, -30.0), Color(1.0, 1.0, 0.8))
+	
+	# 1. 🌀 宽裕弹幕弹反 (Bullet Deflection — 宽容判定 130px)
+	var projectiles = get_tree().get_nodes_in_group("enemy_projectiles")
+	for proj in projectiles:
+		if is_instance_valid(proj) and center.distance_to(proj.global_position) <= 130.0:
+			# 弹反闪光特效
+			if parent_world and parent_world.has_method("_spawn_particle_burst"):
+				parent_world._spawn_particle_burst(proj.global_position, Color(0.3, 1.0, 1.0))
+				parent_world._spawn_particle_burst(proj.global_position, Color(1.0, 1.0, 0.6))
+			# 调用弹幕的 deflect() 将其反弹回敌人方向
+			if proj.has_method("deflect"):
+				proj.deflect()
+			elif proj.has_method("hit_by_batarang"):
+				proj.hit_by_batarang()
+			else:
+				proj.queue_free()
+	
+	# 2. 宽泛判定靠近的敌人与 Boss (Broad Hitbox Detection & High Damage)
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	var hit_any = false
+	
+	for e in enemies:
+		if not is_instance_valid(e):
+			continue
+		if not ("alive" in e and e.alive):
+			continue
+			
+		var e_pos = e.global_position
+		var dist = center.distance_to(e_pos)
+		var dx = e_pos.x - center.x
+		var dy = e_pos.y - center.y
+		
+		# 宽泛攻击范围判定：半径 95px 综合覆盖，或者前方/头顶/脚下宽广区域
+		var is_in_range = (dist <= MELEE_RANGE) or (abs(dx) <= MELEE_RANGE and dy >= -90.0 and dy <= 55.0)
+		if is_in_range:
+			hit_any = true
+			
+			# 重创伤害：对 Boss 造成重创 (hit_by_melee 扣 2 HP)，对普通怪秒杀
+			if e.has_method("hit_by_melee"):
+				e.hit_by_melee(2)
+			elif e.has_method("hit_by_batarang"):
+				e.hit_by_batarang()
+				
+			if parent_world and parent_world.has_method("add_camera_shake"):
+				parent_world.add_camera_shake(6.0, 0.1)
+			if parent_world and parent_world.has_method("trigger_hit_stop"):
+				parent_world.trigger_hit_stop(0.04)
+			if parent_world and parent_world.has_method("_spawn_particle_burst"):
+				parent_world._spawn_particle_burst(e_pos, Color(0.3, 0.95, 1.0))
+	
+	# 强力打击感：卡肉停顿 + 后坐力
+	if hit_any:
+		velocity.x = -80.0 * dir
+		if parent_world and parent_world.has_method("add_camera_shake"):
+			parent_world.add_camera_shake(10.0, 0.15)

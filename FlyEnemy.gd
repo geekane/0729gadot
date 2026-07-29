@@ -115,9 +115,9 @@ func _ready():
 	collision_mask = 1  # 检测玩家图层
 	shoot_timer = randf_range(0.0, 1.5) # 错开发射时间
 	
-	# 碰撞体 (圆形浮空)
+	# 碰撞体 (圆形浮空，放大1.5倍: radius 16→24)
 	var shape = CircleShape2D.new()
-	shape.radius = 16.0
+	shape.radius = 24.0
 	var col = CollisionShape2D.new()
 	col.shape = shape
 	add_child(col)
@@ -130,6 +130,7 @@ func _ready():
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.texture = drone_textures[0] if drone_textures.size() > 0 else null
 	sprite.flip_h = direction < 0
+	sprite.scale = Vector2(3.0, 3.0)
 	add_child(sprite)
 	
 	body_entered.connect(_on_body_entered)
@@ -183,7 +184,7 @@ func _on_body_entered(body):
 	if body.is_in_group("player"):
 		var player_bottom = body.position.y + 18
 		var prev_player_bottom = body.prev_position_y + 18
-		var drone_top = position.y - 14
+		var drone_top = position.y - 22
 		
 		# 踩头判定：从上方落向无人机
 		var stomp_from_fall = body.velocity.y >= 0 and player_bottom <= drone_top + 16
