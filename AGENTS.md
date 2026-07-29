@@ -11,7 +11,7 @@
 > [!IMPORTANT]
 > 1. **全中文沟通与注释**：回答问题一律使用中文，所有 GDScript 代码中的注释必须全部使用中文。
 > 2. **修改后自动试玩**：每次修改代码后，必须通过自动化测试脚手架 (`TestRunner.gd`) 进行实际游玩测试与逐帧渲染快照检查。
-> 3. **确认无误后打包**：只有在自动化游玩测试通过、确认画面与帧率没有任何 Bug / 白闪 / 报错后，才执行 `--export-release` 打包生成 `.exe`。
+> 3. **⚠️ [MUST] 确认无误后打包 — 禁止跳过！** 自动化测试通过后，**立即**（在同一会话内）执行 `--export-release` 打包生成 `.exe`。如果 commit 被 pre-commit hook 拦住，请先打包再提交。
 > 4. **保持纯 GDScript 代码架构**：所有节点继续使用 GDScript 动态创建，不打破纯代码设计理念。
 
 ---
@@ -952,6 +952,14 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 
 - ❌ `TextureRect.EXPAND_KEEP_ASPECT_CENTERED` 在 Godot 4.7 中不存在 → 改为 `stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED`
 - ❌ `tex.texture_filter` 不能设置在 Texture2D 资源上 → 改在 Sprite2D/TextureRect 节点上设置
+
+### 10.17 八脚血盆大口蜘蛛小丑大 Boss (Spider-Joker Monster) 重构规范
+
+| 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
+|------|------|------|---------|
+| 小丑 Boss 原滑行移动平淡乏味 | Boss 像冰块一样在平地上滑动，缺乏威慑感 | 仅仅对 `position.x` 进行线性平移，没有肢体爬行与攻击姿态变幻 | 重构为 **Spider-Joker 恐怖蜘蛛怪**：程序化绘制 8 条双关节蛛腿 (大腿+小腿+毒爪)，实现真实的 8 脚交替爬行步态 (`SKITTER`)。 |
+| 沙漏标记 `draw_polygon` 三角剖分报错 | 控制台报 `ERROR: Invalid polygon data, triangulation failed` | 将沙漏 shape 定义为 `[-6,2, 6,2, 0,10, -6,18, 6,18, 0,10]` 的自交叉多边形 | 拆分为两个独立的凸三角形顶点数组 (`top_tri` + `bot_tri`) 独立调用 `draw_polygon` 绘制，彻底杜绝自交报错！ |
+| Boss 攻击模式单一 | 玩家容易避开单一扑克弹幕 | 缺乏空间压制与动效威慑 | 引入 3 状态 combat AI：`SKITTER` (8脚急速扒行追击) → `CEILING_HANG` (天花板蛛丝倒挂，向下扇形发射 3 连扑克弹与蛛网) → `POUNCE` (张开血盆大口与锯齿獠牙，抛物线弧线飞扑咬杀)！ |
 
 ### 11.8 Phase 4 — 敌人像素化
 

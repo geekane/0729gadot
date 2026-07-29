@@ -216,9 +216,34 @@ func stomp():
 			hide(); queue_free()
 	)
 	
-func hit_by_batarang():
+var hp = 10
+
+func hit_by_melee(damage: int = 10):
+	"""被近战斩击命中 (10 伤害，一击秒杀)"""
 	if not alive:
 		return
+	hp -= damage
+	if hp <= 0:
+		_die_fly_enemy()
+
+func hit_by_batarang(damage: int = 1):
+	"""被蝙蝠飞镖击中 (1 伤害，近战 1/10 刮痧削血)"""
+	if not alive:
+		return
+	hp -= damage
+	
+	modulate = Color(2.5, 2.5, 2.5)
+	var flash_tween = create_tween()
+	flash_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.1)
+	
+	var game = get_tree().current_scene
+	if game and game.has_method("_spawn_floating_text"):
+		game._spawn_floating_text(global_position, "-1 💥", Color(1.0, 0.9, 0.2))
+		
+	if hp <= 0:
+		_die_fly_enemy()
+
+func _die_fly_enemy():
 	alive = false
 	for c in get_children():
 		if c is CollisionShape2D:

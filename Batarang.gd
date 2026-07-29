@@ -66,7 +66,7 @@ func _draw():
 	draw_circle(Vector2.ZERO, 2.5, Color(1.0, 0.9, 0.3))
 
 func _on_area_entered(area):
-	if area.is_in_group("enemies") or area.is_in_group("fly_enemies"):
+	if area.is_in_group("enemies") or area.is_in_group("fly_enemies") or area.is_in_group("enemy_projectiles"):
 		_hit_enemy(area)
 
 func _on_body_entered(body):
@@ -77,7 +77,7 @@ func _on_body_entered(body):
 func _hit_enemy(enemy_node):
 	var game = get_tree().current_scene
 	if enemy_node.has_method("hit_by_batarang"):
-		enemy_node.hit_by_batarang()
+		enemy_node.hit_by_batarang(1)
 	elif enemy_node.has_method("queue_free"):
 		if game and game.has_method("_on_enemy_stomped"):
 			game._on_enemy_stomped(enemy_node)
@@ -88,7 +88,7 @@ func _hit_enemy(enemy_node):
 
 func _destroy_with_effect(hit_something: bool):
 	set_physics_process(false)
-	monitoring = false
+	set_deferred("monitoring", false)  # 使用 deferred 避免信号内阻塞
 	
 	var game = get_tree().current_scene
 	if hit_something and game and game.has_method("_spawn_particle_burst"):

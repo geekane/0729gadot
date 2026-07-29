@@ -18,6 +18,8 @@ var score = 0
 var high_score = 0
 var lives = 3
 var is_paused = false
+var boss_arena_locked = false
+var camera_fixed_boss_arena = false
 
 # 5 关关卡系统配置
 var current_level = 1
@@ -178,7 +180,7 @@ const LEVEL_CONFIGS = {
 			[250, 450, 100, 16], [500, 465, 100, 16], [750, 410, 100, 16], [1000, 465, 100, 16],
 			[1300, 400, 100, 16], [1600, 465, 100, 16], [1900, 400, 100, 16], [2200, 465, 100, 16],
 			[2500, 400, 100, 16], [2800, 465, 100, 16], [3100, 400, 100, 16], [3400, 465, 100, 16],
-			[3700, 400, 100, 16], [4000, 465, 100, 16], [4300, 400, 100, 16], [4700, 360, 100, 16]
+			[3700, 400, 100, 16], [3950, 465, 100, 16]
 		],
 		"moving_platforms": [
 			{"pos": Vector2(500, 360), "dist": 120.0, "speed": 2.4, "vertical": false},
@@ -186,12 +188,11 @@ const LEVEL_CONFIGS = {
 			{"pos": Vector2(1600, 340), "dist": 130.0, "speed": 2.5, "vertical": false},
 			{"pos": Vector2(2200, 350), "dist": 90.0, "speed": 2.4, "vertical": true},
 			{"pos": Vector2(2800, 330), "dist": 140.0, "speed": 2.6, "vertical": false},
-			{"pos": Vector2(3400, 350), "dist": 90.0, "speed": 2.4, "vertical": true},
-			{"pos": Vector2(4000, 330), "dist": 150.0, "speed": 2.7, "vertical": false}
+			{"pos": Vector2(3400, 350), "dist": 90.0, "speed": 2.4, "vertical": true}
 		],
 		"hazards": [
 			Vector2(380, 550), Vector2(880, 550), Vector2(1450, 550), Vector2(2050, 550),
-			Vector2(2650, 550), Vector2(3250, 550), Vector2(3850, 550), Vector2(4450, 550)
+			Vector2(2650, 550), Vector2(3250, 550), Vector2(3850, 550)
 		],
 		"coins": [
 			Vector2(120, 420), Vector2(250, 400), Vector2(380, 470), Vector2(500, 310), Vector2(620, 400),
@@ -199,23 +200,21 @@ const LEVEL_CONFIGS = {
 			Vector2(1450, 450), Vector2(1600, 280), Vector2(1750, 400), Vector2(1900, 340), Vector2(2050, 450),
 			Vector2(2200, 290), Vector2(2350, 400), Vector2(2500, 340), Vector2(2650, 450), Vector2(2800, 270),
 			Vector2(2950, 400), Vector2(3100, 340), Vector2(3250, 450), Vector2(3400, 290), Vector2(3550, 400),
-			Vector2(3700, 340), Vector2(3850, 450), Vector2(4000, 270), Vector2(4300, 340), Vector2(4700, 300)
+			Vector2(3700, 340), Vector2(3850, 450)
 		],
 		"ground_enemies": [
 			{"pos": Vector2(180, 538), "range": 130}, {"pos": Vector2(550, 538), "range": 140},
 			{"pos": Vector2(950, 538), "range": 150}, {"pos": Vector2(1350, 538), "range": 160},
 			{"pos": Vector2(1750, 538), "range": 160}, {"pos": Vector2(2150, 538), "range": 170},
 			{"pos": Vector2(2550, 538), "range": 170}, {"pos": Vector2(2950, 538), "range": 180},
-			{"pos": Vector2(3350, 538), "range": 180}, {"pos": Vector2(3750, 538), "range": 190},
-			{"pos": Vector2(4150, 538), "range": 190}, {"pos": Vector2(4550, 538), "range": 200}
+			{"pos": Vector2(3350, 538), "range": 150}
 		],
 		"fly_enemies": [
 			{"pos": Vector2(300, 250), "range": 120.0}, {"pos": Vector2(650, 200), "range": 130.0},
 			{"pos": Vector2(1050, 220), "range": 140.0}, {"pos": Vector2(1450, 190), "range": 140.0},
 			{"pos": Vector2(1850, 210), "range": 150.0}, {"pos": Vector2(2250, 180), "range": 150.0},
 			{"pos": Vector2(2650, 200), "range": 140.0}, {"pos": Vector2(3050, 170), "range": 160.0},
-			{"pos": Vector2(3450, 190), "range": 150.0}, {"pos": Vector2(3850, 170), "range": 160.0},
-			{"pos": Vector2(4250, 190), "range": 150.0}, {"pos": Vector2(4650, 180), "range": 160.0}
+			{"pos": Vector2(3450, 190), "range": 130.0}
 		]
 	}
 }
@@ -254,7 +253,7 @@ func _process(delta):
 			# 镜头平滑跟随玩家 (使用 lerp 插值 + Trauma 衰减震动偏移)
 			if camera and player_node and is_instance_valid(camera) and is_instance_valid(player_node):
 				var weight = clamp(12.0 * delta, 0.0, 1.0)
-				var target_pos = player_node.position
+				var target_pos = Vector2(4550, 324) if camera_fixed_boss_arena else player_node.position
 				
 				if shake_timer > 0:
 					shake_timer -= delta
@@ -269,6 +268,10 @@ func _process(delta):
 					
 				camera.position = camera.position.lerp(target_pos, weight)
 				
+				# Level 5 决战竞技场早触发 (x >= 4050 看到 Boss 一角即触发电影级运镜)
+				if current_level == 5 and not boss_arena_locked and player_node.position.x >= 4050:
+					_lock_boss_arena()
+					
 				# 掉落死亡判定
 				if player_node.position.y > GROUND_Y + 100:
 					_on_player_hit(player_node)
@@ -628,11 +631,11 @@ func _create_menu():
 	panel.add_child(btn_vbox)
 	
 	var btn_configs = [
-		{"text": "🚀  开始出击 (Level 1 教学关)", "color": Color(1.0, 0.92, 0.3), "action": func(): _start_game()},
-		{"text": "📖  战役关卡选择 (Level 1 ~ 5)", "color": Color(0.9, 0.95, 1.0), "action": func(): _show_level_select_dialog()},
-		{"text": "🏆  荣誉排行榜 (High Scores)", "color": Color(1.0, 0.8, 0.2), "action": func(): _show_high_score_dialog()},
-		{"text": "⚙️  操作指南 (Controls)", "color": Color(0.7, 0.85, 1.0), "action": func(): _show_controls_dialog()},
-		{"text": "🚪  退出游戏 (Quit Game)", "color": Color(1.0, 0.45, 0.45), "action": func(): get_tree().quit()}
+		{"text": ">  开始出击 (Level 1 教学关)", "color": Color(1.0, 0.92, 0.3), "action": func(): _start_game()},
+		{"text": "≡  战役关卡选择 (Level 1 ~ 5)", "color": Color(0.9, 0.95, 1.0), "action": func(): _show_level_select_dialog()},
+		{"text": "♛  荣誉排行榜 (High Scores)", "color": Color(1.0, 0.8, 0.2), "action": func(): _show_high_score_dialog()},
+		{"text": "☰  操作指南 (Controls)", "color": Color(0.7, 0.85, 1.0), "action": func(): _show_controls_dialog()},
+		{"text": "✕  退出游戏 (Quit Game)", "color": Color(1.0, 0.45, 0.45), "action": func(): get_tree().quit()}
 	]
 	
 	for bd in btn_configs:
@@ -713,7 +716,7 @@ func _show_controls_dialog():
 	dialog.add_child(panel)
 	
 	var title = Label.new()
-	title.text = "⚙️  战术控制手册 (Controls)"
+	title.text = "☰  战术控制手册 (Controls)"
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(0.4, 0.85, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -768,7 +771,7 @@ func _show_high_score_dialog():
 	dialog.add_child(panel)
 	
 	var title = Label.new()
-	title.text = "🏆  哥谭英雄荣誉榜"
+	title.text = "♛  哥谭英雄荣誉榜"
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -836,7 +839,7 @@ func _show_level_select_dialog():
 	dialog.add_child(panel)
 	
 	var title = Label.new()
-	title.text = "📖  选择战役关卡"
+	title.text = "≡  选择战役关卡"
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -899,6 +902,8 @@ func _start_level(level_idx: int):
 	state = GameState.PLAYING
 	current_level = level_idx
 	is_paused = false
+	boss_arena_locked = false
+	camera_fixed_boss_arena = false
 	if get_tree():
 		get_tree().paused = false
 	blink_timer = 0.0
@@ -1105,12 +1110,13 @@ func _create_world():
 	add_child(cam)
 	camera = cam
 
-	# 7. 地面物理
-	_add_static_rect(cur_width / 2.0, GROUND_Y + 25, cur_width, 50, Color(0.28, 0.22, 0.16))
+	# 7. 地面物理 (扩展 +800px 覆盖全图与 Boss 战场右侧，彻底杜绝右侧地表缝隙)
+	var ground_w = cur_width + 800.0
+	_add_static_rect(ground_w / 2.0 - 200.0, GROUND_Y + 25, ground_w, 50, Color(0.28, 0.22, 0.16))
 	
 	var grass_spr = Sprite2D.new()
-	grass_spr.texture = PixelBackground.create_grass_texture(int(cur_width), 8)
-	grass_spr.position = Vector2(cur_width / 2.0, GROUND_Y - 2 + 4)
+	grass_spr.texture = PixelBackground.create_grass_texture(int(ground_w), 8)
+	grass_spr.position = Vector2(ground_w / 2.0 - 200.0, GROUND_Y - 2 + 4)
 	add_child(grass_spr)
 	
 	# 8. 静态平台
@@ -1155,7 +1161,7 @@ func _create_world():
 	# 14. 终极关卡 Boss (Level 5 小丑大 Boss 决战)
 	if current_level == 5:
 		var boss = Boss.new()
-		boss.position = Vector2(4650, GROUND_Y - 35)
+		boss.position = Vector2(4820, 180) # 右侧高处天花板静止沉睡构图
 		add_child(boss)
 	
 	_create_finish()
@@ -1225,7 +1231,71 @@ func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	vis.position = Vector2(-w/2.0, -h/2.0)
 	body.add_child(vis)
 
+func _add_invisible_barrier(x: float, y: float, w: float, h: float):
+	"""创建完全隐形的物理阻挡墙 (无紫色或线条绘制，视觉干净干净)"""
+	var body = StaticBody2D.new()
+	body.collision_layer = 1
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(w, h)
+	var col = CollisionShape2D.new()
+	col.shape = shape
+	body.add_child(col)
+	body.position = Vector2(x, y)
+	add_child(body)
+
+func _lock_boss_arena():
+	"""触发 Level 5 Boss 电影级过场：平滑运镜居中、恐怖姿态演出、进入战斗场景 1 秒后解锁 Player 操控"""
+	if boss_arena_locked:
+		return
+	boss_arena_locked = true
+	camera_fixed_boss_arena = true # 🔒 镜头平滑运镜居中至 Vector2(4520, 324)
+	
+	if camera and is_instance_valid(camera):
+		camera.limit_left = 4040
+		camera.limit_right = 5010
+		
+	# 封闭左右隐形物理阻挡墙 (无任何紫色或画线，画面干净极简)
+	_add_invisible_barrier(4040, GROUND_Y - 250, 30, 600)
+	_add_invisible_barrier(5010, GROUND_Y - 250, 30, 600)
+	
+	# 🧹 彻底动态清理 Boss 战场及周边区域 (x >= 3500) 的所有普通小怪与飞行无人机
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if is_instance_valid(e) and not e.is_in_group("bosses"):
+			if e.global_position.x >= 3500.0:
+				e.hide()
+				e.queue_free()
+	
+	# 🎬 电影级过场：平滑冻结玩家操控，展示恐怖演出【左侧蝙蝠侠 VS 右侧天花板静止沉睡 Boss】
+	if player_node and is_instance_valid(player_node):
+		player_node.input_disabled = true
+		player_node.velocity = Vector2.ZERO
+		
+	# 2.0s 电影级过度：镜头拉至中心，展示恐怖演出
+	var timer = get_tree().create_timer(2.0)
+	timer.timeout.connect(func():
+		var p_pos = player_node.global_position if (player_node and is_instance_valid(player_node)) else Vector2(4220, GROUND_Y)
+		var bosses = get_tree().get_nodes_in_group("bosses")
+		for b in bosses:
+			if is_instance_valid(b) and b.has_method("awaken_and_pounce"):
+				b.awaken_and_pounce(p_pos)
+				
+		add_camera_shake(20.0, 0.5)
+		_spawn_floating_text(Vector2(4520, 240), "👄 MUAHAHAHA! GOTHAM WILL FALL!", Color(1.0, 0.15, 0.2))
+		
+		# ⏱️ 精确：进入战斗场景 0.3 秒后解锁 Player 操控，让玩家顺畅响应起跳闪避 Boss 飞扑下坠
+		var unlock_timer = get_tree().create_timer(0.3)
+		unlock_timer.timeout.connect(func():
+			if player_node and is_instance_valid(player_node):
+				player_node.input_disabled = false
+				_spawn_floating_text(player_node.global_position + Vector2(0, -50), "⚠️ DODGE NOW! JUMP! ⚠️", Color(1.0, 0.9, 0.1))
+		)
+	)
+
 func _create_finish():
+	if current_level == 5:
+		return # 🏆 第 5 关决战战场彻底取消右侧终点旗！唯一获胜条件即为击败小丑 Boss！
+		
 	var level_cfg = LEVEL_CONFIGS.get(current_level, LEVEL_CONFIGS[1])
 	var cur_width = level_cfg["width"]
 	var finish = Area2D.new()
@@ -1317,25 +1387,31 @@ func _create_hud():
 	# 关卡进度
 	level_label = Label.new()
 	level_label.name = "LevelLabel"
-	level_label.text = "🚩 Level %d/5" % current_level
+	level_label.text = "Level %d/5" % current_level
 	level_label.position = Vector2(215, 12)
 	level_label.add_theme_font_size_override("font_size", 17)
 	level_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 	panel.add_child(level_label)
 	
-	# 最高分
+	# 最高分（像素皇冠图标 + 数字）
+	var hs_box = HBoxContainer.new()
+	hs_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hs_box.position = Vector2(345, 12)
+	hs_box.size = Vector2(180, 28)
+	hs_box.add_theme_constant_override("separation", 4)
+	hs_box.add_child(_create_pixel_icon("crown", Vector2(16, 16)))
 	high_score_label = Label.new()
 	high_score_label.name = "HighScoreLabel"
-	high_score_label.text = "👑 " + str(high_score)
-	high_score_label.position = Vector2(345, 12)
+	high_score_label.text = str(high_score)
 	high_score_label.add_theme_font_size_override("font_size", 16)
 	high_score_label.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
-	panel.add_child(high_score_label)
+	hs_box.add_child(high_score_label)
+	panel.add_child(hs_box)
 	
 	# 蝙蝠飞镖技能按键提示
 	var skill_label = Label.new()
 	skill_label.name = "SkillLabel"
-	skill_label.text = "🦇 鼠标左键: 飞镖"
+	skill_label.text = "左键: 飞镖"
 	skill_label.position = Vector2(430, 12)
 	skill_label.add_theme_font_size_override("font_size", 16)
 	skill_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
@@ -1363,34 +1439,74 @@ func _update_lives_hud():
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
 func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
+	"""像素飘字：使用 TextureRect(图标) + Label(文字) 组合，已移除 emoji"""
+	var container = Node2D.new()
+	container.position = world_pos + Vector2(-15, -25)
+	add_child(container)
+	
+	# 根据文字内容添加对应像素图标
+	var icon_tex: Texture2D = null
+	var label_text = text
+	if text == "+1":
+		icon_tex = _get_effect_texture("spark_pixel")
+		label_text = "+1"
+	elif text == "+2":
+		icon_tex = _get_effect_texture("star_pixel")
+		label_text = "+2"
+	elif text.begins_with("-1"):
+		icon_tex = _get_effect_texture("heart_pixel")
+		label_text = "-1"
+	elif text.find("BOSS") != -1:
+		icon_tex = _create_pixel_icon("crown", Vector2(16, 16)).texture
+		label_text = text.replace(" 👑 ", " ")
+	
+	var icon_node: TextureRect = null
+	if icon_tex:
+		icon_node = TextureRect.new()
+		icon_node.texture = icon_tex
+		icon_node.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_node.size = Vector2(16, 16)
+		icon_node.position = Vector2(0, 2)
+		icon_node.modulate = color
+		container.add_child(icon_node)
+	
 	var label = Label.new()
-	label.text = text
+	label.text = label_text
 	label.add_theme_font_size_override("font_size", 22)
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("outline_size", 3)
-	label.position = world_pos + Vector2(-15, -25)
-	add_child(label)
+	label.position = Vector2(18 if icon_tex else 0, 0)
+	container.add_child(label)
 	
 	var tween = create_tween().set_parallel(true)
-	tween.tween_property(label, "position:y", label.position.y - 35.0, 0.6)
+	tween.tween_property(container, "position:y", container.position.y - 35.0, 0.6)
 	tween.tween_property(label, "modulate:a", 0.0, 0.6)
+	if icon_node:
+		tween.tween_property(icon_node, "modulate:a", 0.0, 0.6)
 	tween.chain().tween_callback(func():
-		if is_instance_valid(label):
-			label.hide(); label.queue_free()
+		if is_instance_valid(container):
+			container.hide(); container.queue_free()
 	)
 
 func _on_boss_defeated(boss_node):
 	"""小丑大 Boss 被击败后触发"""
 	score += 50
 	if score_label and is_instance_valid(score_label):
-		score_label.text = "💰 " + str(score)
-	_spawn_floating_text(boss_node.global_position, "+50 👑 BOSS DOWN!", Color(1.0, 0.85, 0.2))
+		score_label.text = str(score)
+	_spawn_floating_text(boss_node.global_position, "+50 SPIDER-JOKER DEFEATED!", Color(1.0, 0.85, 0.2))
 	_spawn_particle_burst(boss_node.global_position, Color(1.0, 0.85, 0.1))
 	_spawn_particle_burst(boss_node.global_position + Vector2(-30, -20), Color(0.9, 0.2, 0.9))
 	_spawn_particle_burst(boss_node.global_position + Vector2(30, -20), Color(0.2, 0.9, 0.9))
 	add_camera_shake(18.0, 0.5)
 	trigger_hit_stop(0.08)
+	
+	# 解锁镜头右边界与跟随，允许前往终点
+	camera_fixed_boss_arena = false
+	if camera and is_instance_valid(camera):
+		camera.limit_right = 5300
 
 # ─── 暂停菜单 ──────────────────────────────────────
 
@@ -1422,7 +1538,7 @@ func _toggle_pause():
 		pause_overlay.add_child(panel)
 		
 		var p_title = Label.new()
-		p_title.text = "⏸️ 游戏暂停 (Level %d)" % current_level
+		p_title.text = "游戏暂停 (Level %d)" % current_level
 		p_title.add_theme_font_size_override("font_size", 28)
 		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 		p_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1445,19 +1561,65 @@ func _toggle_pause():
 			pause_overlay.queue_free()
 			pause_overlay = null
 
+# ─── 像素特效纹理缓存 ──────────────────────────────
+
+var _effect_texture_cache: Dictionary = {}
+
+func _get_effect_texture(name: String) -> Texture2D:
+	"""从缓存获取或生成像素精灵纹理（spark / dust / star / fire / heart）"""
+	if _effect_texture_cache.has(name):
+		return _effect_texture_cache[name]
+	
+	var tex: Texture2D = null
+	match name:
+		"spark_pixel":
+			var pal = { "Y": Color(1.0, 0.85, 0.1), "W": Color(1.0, 0.95, 0.5), ".": Color.TRANSPARENT }
+			var pixels = ["....", ".YW.", "WYYW", ".YW."]
+			tex = PixelLib.create_texture(4, 4, pixels, pal)
+		"dust_pixel":
+			var pal = { "G": Color(0.75, 0.75, 0.82), ".": Color.TRANSPARENT }
+			var pixels = ["....", ".GG.", "GGGG", ".GG."]
+			tex = PixelLib.create_texture(4, 4, pixels, pal)
+		"star_pixel":
+			var pal = { "Y": Color(1.0, 0.9, 0.3), "W": Color(1.0, 1.0, 0.8), ".": Color.TRANSPARENT }
+			var pixels = ["..Y..", ".WY.", "YWYY.", ".WY.", "..Y.."]
+			tex = PixelLib.create_texture(5, 5, pixels, pal)
+		"fire_pixel":
+			var pal = { "R": Color(0.95, 0.2, 0.15), "O": Color(1.0, 0.6, 0.1), ".": Color.TRANSPARENT }
+			var pixels = ["....", ".OO.", "ORRO", ".OO."]
+			tex = PixelLib.create_texture(4, 4, pixels, pal)
+		"heart_pixel":
+			var pal = { "R": Color(0.95, 0.15, 0.25), ".": Color.TRANSPARENT }
+			var pixels = ["......", "..RR..", ".RRRR.", "RRRRRR", ".RRRR.", "..RR.."]
+			tex = PixelLib.create_texture(6, 6, pixels, pal)
+	
+	if tex:
+		_effect_texture_cache[name] = tex
+	return tex
+
 # ─── 粒子爆裂特效 (Particle Burst Effect) ─────────────
 
 func _spawn_particle_burst(world_pos: Vector2, color: Color):
+	"""像素粒子爆裂特效：根据颜色选择 spark(黄/白/紫/青) 或 fire(红/橙) 纹理"""
 	var node = Node2D.new()
 	node.position = world_pos
 	add_child(node)
 	
+	# 根据颜色选择纹理：红/橙色调→fire_pixel，其余→spark_pixel
+	var is_red_orange = color.r > 0.7 and color.g <= 0.35 and color.b <= 0.35
+	var tex_name = "fire_pixel" if is_red_orange else "spark_pixel"
+	var tex = _get_effect_texture(tex_name)
+	
 	var count = 8
 	var particles = []
 	for i in range(count):
-		var p = ColorRect.new()
-		p.color = color
-		var sz = randf_range(3.0, 6.0)
+		var p = TextureRect.new()
+		p.texture = tex
+		p.self_modulate = color
+		p.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		p.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sz = randf_range(8.0, 14.0)
 		p.size = Vector2(sz, sz)
 		var angle = i * 2.0 * PI / count + randf_range(-0.3, 0.3)
 		var speed = randf_range(80.0, 160.0)
@@ -1483,7 +1645,7 @@ func _on_coin_collected(coin):
 		return
 	score += 1
 	if score_label and is_instance_valid(score_label):
-		score_label.text = "💰 " + str(score)
+		score_label.text = str(score)
 	if coin:
 		_spawn_floating_text(coin.position, "+1", Color(1.0, 0.9, 0.2))
 		_spawn_particle_burst(coin.position, Color(1.0, 0.85, 0.2))
@@ -1493,7 +1655,7 @@ func _on_enemy_stomped(enemy):
 		return
 	score += 2
 	if score_label and is_instance_valid(score_label):
-		score_label.text = "💰 " + str(score)
+		score_label.text = str(score)
 	if enemy:
 		_spawn_floating_text(enemy.position, "+2", Color(0.3, 1.0, 0.4))
 		_spawn_particle_burst(enemy.position, Color(0.9, 0.2, 0.15))
@@ -1503,7 +1665,7 @@ func _player_hurt(body):
 		if body.hit():
 			lives -= 1
 			_update_lives_hud()
-			_spawn_floating_text(body.position, "-1 ❤️", Color(1.0, 0.2, 0.2))
+			_spawn_floating_text(body.position, "-1", Color(1.0, 0.2, 0.2))
 			_spawn_particle_burst(body.position, Color(1.0, 0.3, 0.3))
 			if lives <= 0:
 				body.die()
@@ -1572,7 +1734,7 @@ func _show_overlay(title_text, title_color, hint_text):
 		is_new_record = true
 	
 	var score_info = Label.new()
-	score_info.text = "累计得分: " + str(score) + ("  (🎉 刷新最高纪录!)" if is_new_record else "  (最高: " + str(high_score) + ")")
+	score_info.text = "累计得分: " + str(score) + ("  (★ 刷新最高纪录!)" if is_new_record else "  (最高: " + str(high_score) + ")")
 	score_info.add_theme_font_size_override("font_size", 20)
 	score_info.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3) if is_new_record else Color(0.85, 0.9, 1.0))
 	score_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1602,12 +1764,12 @@ func _win_game():
 	if player_node:
 		player_node.input_disabled = true
 	if current_level < MAX_LEVEL:
-		_show_overlay("🎉  第 %d 关 通 关  🎉" % current_level, Color(0.35, 1.0, 0.4), "按 空格键 挑战第 %d 关" % (current_level + 1))
+		_show_overlay("第 %d 关 通 关" % current_level, Color(0.35, 1.0, 0.4), "按 空格键 挑战第 %d 关" % (current_level + 1))
 	else:
-		_show_overlay("🏆  哥 谭 守 护 者  🏆", Color(1.0, 0.85, 0.2), "🎉 全 关 卡 通 关！按 空格键 返回主菜单")
+		_show_overlay("哥 谭 守 护 者", Color(1.0, 0.85, 0.2), "全 关 卡 通 关！按 空格键 返回主菜单")
 
 func _game_over():
 	state = GameState.GAME_OVER
 	if player_node:
 		player_node.input_disabled = true
-	_show_overlay("💀  游 戏 结 束  💀", Color(1.0, 0.35, 0.35), "按 空格键 返回主菜单")
+	_show_overlay("游 戏 结 束", Color(1.0, 0.35, 0.35), "按 空格键 返回主菜单")

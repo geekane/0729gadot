@@ -11,7 +11,7 @@
 ## 🎮 游戏核心特色
 
 - 🌌 **2.5D 视差纵深夜景 (ParallaxBackground)**：4 层不同视差速率的深邃哥谭夜景（月亮探照灯、远景摩天大楼窗光、中景天际线水塔与浮云、近景管道护栏），带来震撼的镜头平移纵深感！
-- 🎨 **纯 GDScript 矢量 Icon 系统 (无 Emoji)**：彻底淘汰全系统 Unicode Emojis，采用纯代码绘制的心形 (`HeartIcon`)、金币 (`CoinIcon`)、皇冠 (`CrownIcon`)、蝙蝠胸章 (`BatIcon`) 与通关旗杆，消除 OS 系统字体渲染差异与乱码风险！
+- 🎨 **纯像素图标 (Pixel Icon) + 零 Emoji 系统**：彻底淘汰全系统 Unicode Emojis，所有 HUD 图标、按钮装饰、飘字图标、粒子特效纹理全部采用 `PixelLib.create_texture()` 生成的像素图，消除 OS 系统字体渲染差异与乱码风险！
 - 🏛️ **完整高级主菜单系统**：包含开始出击、**自由关卡选择 (Level 1 ~ 5 弹窗)**、操作指南弹窗、荣誉纪录与退出游戏功能。
 - 🦸‍♂️ **纯代码矢量蝙蝠侠形象**：零外部图片资源！包含动态动作相位（待机呼吸、奔跑迎风摆动斗篷、空中滑翔翼张开、起跳拉伸/落地挤压变形）。
 - 🦇 **蝙蝠飞镖攻击系统 (Batarang)**：支持鼠标"指哪打哪"精准瞄准、自旋双翼矢量绘制、击中敌/Boss 产生爆裂特效与浮动得分。
@@ -115,9 +115,11 @@ d:\godot-test-project\
 
 项目使用纯代码像素绘制（`pixel_config.gd` / `pixel_lib.gd` / `pixel_background.gd`）：
 
-- 背景（月亮、大楼、云、管道、草地）→ 像素化
-- 道具（Coin、Hazard、HUD 图标）→ 像素化
-- 角色和敌人像素化（Phase 3-4）：进行中
+- 背景（月亮、大楼、云、管道、草地）→ 像素化 ✅
+- 道具（Coin、Hazard、HUD 图标）→ 像素化 ✅
+- 敌人像素化（Enemy/FlyEnemy/Boss）→ 像素化 ✅
+- 特效+菜单抛光（粒子像素纹理 + 全系统零 Emoji）→ 已完成 ✅
+- 角色像素化（Player）：❌ 待做（当前使用程序化矢量绘制）
 - 全局 NEAREST 滤波（`viewport.canvas_item_default_texture_filter`）
 
 ---
