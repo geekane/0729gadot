@@ -4,11 +4,12 @@
     "id": "e134fecc-8d92-4a79-85e4-c891dc012b4d",
     "sessionID": "ses_053714cd9ffeDDYTzJIX6HkaGw",
     "objective": "这些依靠纯代码好实现吗？",
-    "status": "active",
+    "status": "complete",
     "tokensUsed": 0,
     "timeUsedSeconds": 0,
     "createdAt": 1785306762,
-    "updatedAt": 1785306762,
-    "lastStartedAt": 1785306762
+    "updatedAt": 1785306780,
+    "lastStartedAt": 1785306762,
+    "completedAt": 1785306780
   }
 }
