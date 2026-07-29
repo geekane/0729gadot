@@ -673,6 +673,25 @@ if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get
 
 **JSON 快照**: 测试完成后保存 `res://screenshots/` 下截图 + `.monitor_snapshot.json` 性能数据。
 
+### 9.13 TestRunner 性能优化 — 延迟截图落盘
+
+```gdscript
+# 优化前：每帧截图时直接 save_png → 磁盘 I/O 阻塞主线程
+# 优化后：内存缓存 + 统一落盘
+var pending_captures = {}  # filename → Image
+
+func _queue_capture(filename: String):
+    var img = root.get_texture().get_image()
+    pending_captures[filename] = img  # 仅内存操作
+
+func _save_all_pending_captures():
+    for filename in pending_captures:
+        pending_captures[filename].save_png("res://screenshots/" + filename)
+```
+
+**效果**: 避免游戏运行中 save_png 磁盘 I/O 阻塞导致帧率采样偏差，确保性能数据准确。
+**采样窗口**: 80→120 帧开始（等 FPS 滑动窗口清空初始化残留平均值）。
+
 ---
 
 ## 10. 已知局限 & 可优化方向
