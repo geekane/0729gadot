@@ -3,7 +3,8 @@ extends CharacterBody2D
 const SPEED = 300.0
 const JUMP_VELOCITY = -530.0
 const GRAVITY = 1100.0
-const LEVEL_WIDTH = 1632
+# 动态关卡宽度，由 Game.gd 在创建玩家后赋值
+var level_width = 5000
 
 var invincible_timer = 0.0
 var is_dead = false
@@ -13,9 +14,13 @@ var just_spawned = true
 # 上一帧位置，用于踩怪判定
 var prev_position_y = 0.0
 
+const Batarang = preload("res://Batarang.gd")
+
 # Coyote Time (土狼时间) & Jump Buffer (跳跃预输入)
 var coyote_timer = 0.0
 var jump_buffer_timer = 0.0
+var batarang_cooldown_timer = 0.0
+const BATARANG_COOLDOWN = 0.3  # 0.3s 冷却时间
 
 # 动态动画变量 (Animation Parameters)
 var anim_time = 0.0
@@ -163,19 +168,25 @@ func _unhandled_input(event):
 	if is_dead or input_disabled or just_spawned:
 		return
 	
-	# 跳跃输入触发与 Jump Buffer 预输入缓冲 (0.12s)
+	# 跳跃输入触发与 Jump Buffer 预输入缓冲 (0.12s) - 支持 Space 空格键 / W 键 / ↑ 键
 	if event.is_action_pressed("ui_accept") or \
 	   (event is InputEventKey and event.pressed and not event.echo and \
-	    (event.keycode == KEY_W or event.keycode == KEY_UP)):
+	    (event.keycode == KEY_SPACE or event.keycode == KEY_W or event.keycode == KEY_UP)):
 		jump_buffer_timer = 0.12
 		get_viewport().set_input_as_handled()
 		
 	# 提前松开跳跃键进行微调跳跃高度 (Variable Jump Height)
 	if event.is_action_released("ui_accept") or \
 	   (event is InputEventKey and not event.pressed and \
-	    (event.keycode == KEY_W or event.keycode == KEY_UP)):
+	    (event.keycode == KEY_SPACE or event.keycode == KEY_W or event.keycode == KEY_UP)):
 		if velocity.y < -150.0:
 			velocity.y *= 0.45
+			
+	# 鼠标左键 或 J 键 / K 键 发射蝙蝠飞镖 (Batarang Attack)
+	if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT) or \
+	   (event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_J or event.keycode == KEY_K)):
+		shoot_batarang()
+		get_viewport().set_input_as_handled()
 
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
@@ -199,6 +210,9 @@ func _physics_process(delta):
 		coyote_timer = 0.12
 	else:
 		coyote_timer -= delta
+		
+	if batarang_cooldown_timer > 0:
+		batarang_cooldown_timer -= delta
 		
 	if jump_buffer_timer > 0:
 		jump_buffer_timer -= delta
@@ -225,9 +239,17 @@ func _physics_process(delta):
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	
-	# 水平移动
+	# 水平移动 (支持 A / D 键、← / → 键 与 Godot Action 轴)
 	var dir = Input.get_axis("ui_left", "ui_right")
-	if dir:
+	if dir == 0.0:
+		var left = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
+		var right = Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
+		if left and not right:
+			dir = -1.0
+		elif right and not left:
+			dir = 1.0
+
+	if dir != 0.0:
 		velocity.x = dir * SPEED
 		var new_facing = dir > 0
 		if new_facing != facing_right:
@@ -239,7 +261,7 @@ func _physics_process(delta):
 	move_and_slide()
 	
 	# 边界限制
-	position.x = clamp(position.x, 12.0, LEVEL_WIDTH - 12.0)
+	position.x = clamp(position.x, 12.0, level_width - 12.0)
 	
 	# 控制动画刷新频率：按需刷新或每 2 物理帧刷新一次 (30FPS 动画帧率，大降 Process CPU 开销)
 	if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get_physics_frames() % 2 == 0):
@@ -269,3 +291,27 @@ func die():
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "modulate", Color(1.0, 0.2, 0.2, 0.6), 0.4)
 	tween.chain().tween_callback(func(): hide())
+
+func shoot_batarang():
+	"""发射蝙蝠飞镖"""
+	if is_dead or input_disabled or batarang_cooldown_timer > 0:
+		return
+		
+	batarang_cooldown_timer = BATARANG_COOLDOWN
+	
+	var parent_world = get_parent()
+	if not parent_world:
+		return
+		
+	var batarang = Batarang.new()
+	var dir_factor = 1.0 if facing_right else -1.0
+	# 飞镖从蝙蝠侠胸口位置发射
+	batarang.position = position + Vector2(16.0 * dir_factor, -4.0)
+	batarang.direction = dir_factor
+	parent_world.add_child(batarang)
+	
+	# 粒子特效
+	if parent_world.has_method("_spawn_particle_burst"):
+		parent_world._spawn_particle_burst(batarang.position, Color(1.0, 0.85, 0.2))
+		
+	queue_redraw()

@@ -1,7 +1,7 @@
 extends Area2D
 
-const BASE_PATROL_SPEED = 90.0
-const CHASE_SPEED = 140.0  # 加快追击速度
+const BASE_PATROL_SPEED = 115.0
+const CHASE_SPEED = 185.0  # 大幅加快追击速度，逼迫玩家使用蝙蝠飞镖攻击
 
 var patrol_range = 100.0
 var direction = -1
@@ -149,4 +149,22 @@ func stomp():
 	tween.tween_property(self, "scale", Vector2(1.4, 0.15), 0.15)
 	tween.tween_property(self, "modulate:a", 0.0, 0.3)
 	tween.tween_property(self, "modulate", Color(0.5, 0.2, 0.05), 0.2)
+	tween.chain().tween_callback(func(): hide(); queue_free())
+
+func hit_by_batarang():
+	"""被蝙蝠飞镖击中"""
+	if not alive:
+		return
+	alive = false
+	for c in get_children():
+		if c is CollisionShape2D:
+			c.set_deferred("disabled", true)
+			
+	var game = get_tree().current_scene
+	if game and game.has_method("_on_enemy_stomped"):
+		game._on_enemy_stomped(self)
+		
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(self, "scale", Vector2(0.1, 0.1), 0.15)
+	tween.tween_property(self, "modulate:a", 0.0, 0.15)
 	tween.chain().tween_callback(func(): hide(); queue_free())

@@ -19,6 +19,8 @@ func _ready():
 	shape.size = Vector2(width, height)
 	var col = CollisionShape2D.new()
 	col.shape = shape
+	# 单向平台: 只从上方站住，从下方和侧面均可穿过
+	col.one_way_collision = true
 	add_child(col)
 	
 	# 视觉结构

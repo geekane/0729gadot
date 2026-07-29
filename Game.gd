@@ -39,26 +39,22 @@ var blink_visible = true
 # 5 关阶梯难度与长度数据表 (所有地面区域均配备 y=465 登高登台，杜绝地面死胡同)
 const LEVEL_CONFIGS = {
 	1: {
-		"name": "哥谭夜航",
+		"name": "教学关：哥谭试炼",
 		"width": 1632,
 		"platforms": [
-			[300, 480, 110, 16], [450, 420, 110, 16], [750, 460, 110, 16], [950, 400, 110, 16],
-			[1200, 450, 110, 16], [1400, 380, 110, 16]
+			[300, 480, 120, 16], [750, 460, 120, 16], [1200, 450, 120, 16]
 		],
-		"moving_platforms": [
-			{"pos": Vector2(650, 360), "dist": 90.0, "speed": 1.8, "vertical": false},
-			{"pos": Vector2(1050, 380), "dist": 70.0, "speed": 1.5, "vertical": true}
-		],
-		"hazards": [Vector2(520, 550), Vector2(1020, 550)],
+		"moving_platforms": [],
+		"hazards": [],
 		"coins": [
-			Vector2(200, 410), Vector2(300, 440), Vector2(450, 370), Vector2(650, 310), Vector2(750, 410),
-			Vector2(950, 350), Vector2(1050, 320), Vector2(1200, 400), Vector2(1400, 330), Vector2(1500, 420)
+			Vector2(180, 520), Vector2(300, 440), Vector2(500, 520), Vector2(750, 420),
+			Vector2(1000, 520), Vector2(1200, 410), Vector2(1450, 520)
 		],
 		"ground_enemies": [
-			{"pos": Vector2(300, 538), "range": 160}, {"pos": Vector2(800, 538), "range": 200}, {"pos": Vector2(1300, 538), "range": 180}
+			{"pos": Vector2(850, 538), "range": 120}
 		],
 		"fly_enemies": [
-			{"pos": Vector2(650, 250), "range": 120.0}, {"pos": Vector2(1250, 220), "range": 110.0}
+			{"pos": Vector2(1150, 260), "range": 80.0}
 		]
 	},
 	2: {
@@ -115,14 +111,16 @@ const LEVEL_CONFIGS = {
 			Vector2(2250, 290), Vector2(2400, 400), Vector2(2550, 340), Vector2(2700, 450), Vector2(2850, 280)
 		],
 		"ground_enemies": [
-			{"pos": Vector2(250, 538), "range": 150}, {"pos": Vector2(650, 538), "range": 180},
-			{"pos": Vector2(1150, 538), "range": 200}, {"pos": Vector2(1750, 538), "range": 200},
-			{"pos": Vector2(2350, 538), "range": 200}, {"pos": Vector2(2950, 538), "range": 200}
+			{"pos": Vector2(250, 538), "range": 150}, {"pos": Vector2(600, 538), "range": 160},
+			{"pos": Vector2(980, 538), "range": 180}, {"pos": Vector2(1350, 538), "range": 180},
+			{"pos": Vector2(1750, 538), "range": 190}, {"pos": Vector2(2150, 538), "range": 190},
+			{"pos": Vector2(2550, 538), "range": 200}, {"pos": Vector2(2950, 538), "range": 200}
 		],
 		"fly_enemies": [
-			{"pos": Vector2(400, 260), "range": 120.0}, {"pos": Vector2(900, 210), "range": 130.0},
-			{"pos": Vector2(1400, 230), "range": 140.0}, {"pos": Vector2(1900, 200), "range": 150.0},
-			{"pos": Vector2(2500, 220), "range": 130.0}, {"pos": Vector2(3000, 190), "range": 160.0}
+			{"pos": Vector2(350, 260), "range": 120.0}, {"pos": Vector2(750, 210), "range": 130.0},
+			{"pos": Vector2(1150, 230), "range": 140.0}, {"pos": Vector2(1550, 200), "range": 150.0},
+			{"pos": Vector2(1950, 220), "range": 130.0}, {"pos": Vector2(2350, 190), "range": 160.0},
+			{"pos": Vector2(2750, 210), "range": 140.0}, {"pos": Vector2(3050, 180), "range": 150.0}
 		]
 	},
 	4: {
@@ -144,7 +142,7 @@ const LEVEL_CONFIGS = {
 		],
 		"hazards": [
 			Vector2(380, 550), Vector2(880, 550), Vector2(1450, 550), Vector2(2050, 550),
-			Vector2(2650, 550), Vector2(3250, 550)
+			Vector2(2650, 550), Vector2(3250, 550), Vector2(3750, 550)
 		],
 		"coins": [
 			Vector2(150, 420), Vector2(250, 400), Vector2(380, 470), Vector2(500, 310), Vector2(620, 400),
@@ -154,16 +152,18 @@ const LEVEL_CONFIGS = {
 			Vector2(2950, 400), Vector2(3100, 340), Vector2(3250, 450), Vector2(3400, 290), Vector2(3750, 300)
 		],
 		"ground_enemies": [
-			{"pos": Vector2(200, 538), "range": 150}, {"pos": Vector2(600, 538), "range": 170},
-			{"pos": Vector2(1100, 538), "range": 190}, {"pos": Vector2(1700, 538), "range": 200},
-			{"pos": Vector2(2300, 538), "range": 200}, {"pos": Vector2(2900, 538), "range": 200},
-			{"pos": Vector2(3500, 538), "range": 220}
+			{"pos": Vector2(200, 538), "range": 140}, {"pos": Vector2(550, 538), "range": 150},
+			{"pos": Vector2(900, 538), "range": 160}, {"pos": Vector2(1300, 538), "range": 170},
+			{"pos": Vector2(1700, 538), "range": 180}, {"pos": Vector2(2100, 538), "range": 180},
+			{"pos": Vector2(2500, 538), "range": 180}, {"pos": Vector2(2900, 538), "range": 190},
+			{"pos": Vector2(3300, 538), "range": 190}, {"pos": Vector2(3700, 538), "range": 200}
 		],
 		"fly_enemies": [
-			{"pos": Vector2(350, 250), "range": 130.0}, {"pos": Vector2(750, 200), "range": 140.0},
-			{"pos": Vector2(1250, 220), "range": 150.0}, {"pos": Vector2(1850, 190), "range": 160.0},
-			{"pos": Vector2(2450, 210), "range": 140.0}, {"pos": Vector2(3050, 180), "range": 170.0},
-			{"pos": Vector2(3650, 200), "range": 150.0}
+			{"pos": Vector2(300, 250), "range": 130.0}, {"pos": Vector2(650, 200), "range": 140.0},
+			{"pos": Vector2(1050, 220), "range": 150.0}, {"pos": Vector2(1450, 190), "range": 150.0},
+			{"pos": Vector2(1850, 210), "range": 140.0}, {"pos": Vector2(2250, 180), "range": 160.0},
+			{"pos": Vector2(2650, 200), "range": 150.0}, {"pos": Vector2(3050, 170), "range": 160.0},
+			{"pos": Vector2(3450, 190), "range": 150.0}, {"pos": Vector2(3800, 180), "range": 160.0}
 		]
 	},
 	5: {
@@ -197,16 +197,20 @@ const LEVEL_CONFIGS = {
 			Vector2(3700, 340), Vector2(3850, 450), Vector2(4000, 270), Vector2(4300, 340), Vector2(4700, 300)
 		],
 		"ground_enemies": [
-			{"pos": Vector2(180, 538), "range": 140}, {"pos": Vector2(600, 538), "range": 160},
-			{"pos": Vector2(1100, 538), "range": 180}, {"pos": Vector2(1700, 538), "range": 200},
-			{"pos": Vector2(2300, 538), "range": 200}, {"pos": Vector2(2900, 538), "range": 200},
-			{"pos": Vector2(3500, 538), "range": 220}, {"pos": Vector2(4200, 538), "range": 240}
+			{"pos": Vector2(180, 538), "range": 130}, {"pos": Vector2(550, 538), "range": 140},
+			{"pos": Vector2(950, 538), "range": 150}, {"pos": Vector2(1350, 538), "range": 160},
+			{"pos": Vector2(1750, 538), "range": 160}, {"pos": Vector2(2150, 538), "range": 170},
+			{"pos": Vector2(2550, 538), "range": 170}, {"pos": Vector2(2950, 538), "range": 180},
+			{"pos": Vector2(3350, 538), "range": 180}, {"pos": Vector2(3750, 538), "range": 190},
+			{"pos": Vector2(4150, 538), "range": 190}, {"pos": Vector2(4550, 538), "range": 200}
 		],
 		"fly_enemies": [
-			{"pos": Vector2(300, 250), "range": 130.0}, {"pos": Vector2(750, 200), "range": 140.0},
-			{"pos": Vector2(1250, 220), "range": 150.0}, {"pos": Vector2(1850, 190), "range": 160.0},
-			{"pos": Vector2(2450, 210), "range": 140.0}, {"pos": Vector2(3050, 180), "range": 170.0},
-			{"pos": Vector2(3650, 200), "range": 150.0}, {"pos": Vector2(4250, 170), "range": 180.0}
+			{"pos": Vector2(300, 250), "range": 120.0}, {"pos": Vector2(650, 200), "range": 130.0},
+			{"pos": Vector2(1050, 220), "range": 140.0}, {"pos": Vector2(1450, 190), "range": 140.0},
+			{"pos": Vector2(1850, 210), "range": 150.0}, {"pos": Vector2(2250, 180), "range": 150.0},
+			{"pos": Vector2(2650, 200), "range": 140.0}, {"pos": Vector2(3050, 170), "range": 160.0},
+			{"pos": Vector2(3450, 190), "range": 150.0}, {"pos": Vector2(3850, 170), "range": 160.0},
+			{"pos": Vector2(4250, 190), "range": 150.0}, {"pos": Vector2(4650, 180), "range": 160.0}
 		]
 	}
 }
@@ -305,62 +309,96 @@ func _create_menu():
 	
 	var panel = Panel.new()
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.16, 0.28, 0.85)
+	style.bg_color = Color(0.12, 0.16, 0.28, 0.9)
 	style.corner_radius_top_left = 16
 	style.corner_radius_top_right = 16
 	style.corner_radius_bottom_left = 16
 	style.corner_radius_bottom_right = 16
-	style.shadow_size = 12
-	style.shadow_color = Color(0, 0, 0, 0.4)
+	style.shadow_size = 14
+	style.shadow_color = Color(0, 0, 0, 0.45)
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(276, 100)
-	panel.size = Vector2(600, 440)
+	panel.position = Vector2(246, 80)
+	panel.size = Vector2(660, 480)
 	panel.name = "MenuPanel"
 	add_child(panel)
 	
 	var title = Label.new()
 	title.text = "🦇 哥谭大冒险：蝙蝠侠出击"
-	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
 	title.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.1, 0.95))
 	title.add_theme_constant_override("outline_size", 8)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 30)
-	title.size = Vector2(600, 60)
+	title.position = Vector2(0, 25)
+	title.size = Vector2(660, 55)
 	panel.add_child(title)
 
+	# 战术控制指南面板
 	var instr_box = Panel.new()
 	var ib_style = StyleBoxFlat.new()
-	ib_style.bg_color = Color(0.06, 0.08, 0.16, 0.6)
+	ib_style.bg_color = Color(0.06, 0.08, 0.16, 0.65)
 	ib_style.corner_radius_top_left = 10
 	ib_style.corner_radius_top_right = 10
 	ib_style.corner_radius_bottom_left = 10
 	ib_style.corner_radius_bottom_right = 10
+	ib_style.border_width_left = 1
+	ib_style.border_width_right = 1
+	ib_style.border_width_top = 1
+	ib_style.border_width_bottom = 1
+	ib_style.border_color = Color(0.3, 0.4, 0.6, 0.4)
 	instr_box.add_theme_stylebox_override("panel", ib_style)
-	instr_box.position = Vector2(50, 140)
-	instr_box.size = Vector2(500, 160)
+	instr_box.position = Vector2(50, 100)
+	instr_box.size = Vector2(560, 200)
 	panel.add_child(instr_box)
 	
 	var instr = Label.new()
-	instr.text = "【蝙蝠侠战术指南 - 共 5 关】\n\n• A / D 或 ← → 键：蝙蝠战衣平滑巡航\n• Space / W / ↑ 键：蝙蝠披风高跳 / 跃上平台\n• ESC 键：暂停菜单 | 沿平台与登高梯跳跃，闪避怪物与地刺"
+	instr.text = "【 🎮 全新操控指令与战术手册 】\n\n• A / D 键：左右移动（蝙蝠战衣平滑巡航）\n• Space 空格键：高跳 / 跃上平台\n• 鼠标左键：发射蝙蝠飞镖 (Batarang)\n• ESC 键：暂停菜单 | 第一关为手把手教学试炼"
 	instr.add_theme_font_size_override("font_size", 16)
-	instr.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0, 0.85))
+	instr.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0, 0.9))
 	instr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	instr.position = Vector2(10, 12)
-	instr.size = Vector2(480, 136)
+	instr.position = Vector2(15, 15)
+	instr.size = Vector2(530, 170)
 	instr_box.add_child(instr)
+	
+	# 交互式开始游戏按钮
+	var start_btn = Button.new()
+	start_btn.text = "🚀  开始游戏  (进入 Level 1 教学关)"
+	start_btn.add_theme_font_size_override("font_size", 22)
+	start_btn.add_theme_color_override("font_color", Color(1.0, 0.92, 0.3))
+	
+	var btn_style = StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.18, 0.28, 0.48, 0.9)
+	btn_style.corner_radius_top_left = 12
+	btn_style.corner_radius_top_right = 12
+	btn_style.corner_radius_bottom_left = 12
+	btn_style.corner_radius_bottom_right = 12
+	btn_style.shadow_size = 6
+	start_btn.add_theme_stylebox_override("normal", btn_style)
+	
+	var btn_hover = StyleBoxFlat.new()
+	btn_hover.bg_color = Color(0.28, 0.42, 0.68, 0.95)
+	btn_hover.corner_radius_top_left = 12
+	btn_hover.corner_radius_top_right = 12
+	btn_hover.corner_radius_bottom_left = 12
+	btn_hover.corner_radius_bottom_right = 12
+	start_btn.add_theme_stylebox_override("hover", btn_hover)
+	
+	start_btn.position = Vector2(100, 330)
+	start_btn.size = Vector2(460, 55)
+	start_btn.pressed.connect(func(): _start_game())
+	panel.add_child(start_btn)
 	
 	overlay = CanvasLayer.new()
 	overlay.name = "Overlay"
 	overlay_label = Label.new()
-	overlay_label.text = "按 空格键 开始 Level 1 出击"
-	overlay_label.add_theme_font_size_override("font_size", 28)
-	overlay_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 0.95))
+	overlay_label.text = "按 空格键 或 点击上方按钮 开始出击"
+	overlay_label.add_theme_font_size_override("font_size", 22)
+	overlay_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 0.9))
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	overlay_label.add_theme_constant_override("outline_size", 4)
+	overlay_label.add_theme_constant_override("outline_size", 3)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	overlay_label.position = Vector2(276, 425)
-	overlay_label.size = Vector2(600, 45)
+	overlay_label.position = Vector2(246, 500)
+	overlay_label.size = Vector2(660, 35)
 	overlay.add_child(overlay_label)
 	add_child(overlay)
 	overlay_hint = overlay_label
@@ -544,6 +582,51 @@ func _create_world():
 		add_child(fe)
 	
 	_create_finish()
+	
+	# 第 1 关教学关：创建现场实况教学提示标牌
+	if current_level == 1:
+		_create_tutorial_hints()
+
+func _create_tutorial_hints():
+	var hints = [
+		{"pos": Vector2(100, 360), "title": "【1. 移动试炼】", "desc": "按 A / D 键 控制蝙蝠侠左右移动"},
+		{"pos": Vector2(360, 320), "title": "【2. 跳跃试炼】", "desc": "按 Space 空格键 跃上上方平台"},
+		{"pos": Vector2(750, 340), "title": "【3. 战斗试炼】", "desc": "点击 鼠标左键 发射蝙蝠飞镖击落敌人！"},
+		{"pos": Vector2(1300, 360), "title": "【4. 顺利毕业】", "desc": "触碰绿旗通关，开启第 2 关正式战役！"}
+	]
+	for h in hints:
+		var panel = Panel.new()
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.1, 0.15, 0.28, 0.88)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(1.0, 0.85, 0.2, 0.85)
+		style.corner_radius_top_left = 8
+		style.corner_radius_top_right = 8
+		style.corner_radius_bottom_left = 8
+		style.corner_radius_bottom_right = 8
+		style.shadow_size = 4
+		panel.add_theme_stylebox_override("panel", style)
+		panel.position = h["pos"]
+		panel.size = Vector2(250, 60)
+		
+		var title_lbl = Label.new()
+		title_lbl.text = h["title"]
+		title_lbl.add_theme_font_size_override("font_size", 14)
+		title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		title_lbl.position = Vector2(10, 6)
+		panel.add_child(title_lbl)
+		
+		var desc_lbl = Label.new()
+		desc_lbl.text = h["desc"]
+		desc_lbl.add_theme_font_size_override("font_size", 12)
+		desc_lbl.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0))
+		desc_lbl.position = Vector2(10, 28)
+		panel.add_child(desc_lbl)
+		
+		add_child(panel)
 
 func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	var body = StaticBody2D.new()
@@ -552,6 +635,9 @@ func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	shape.size = Vector2(w, h)
 	var col = CollisionShape2D.new()
 	col.shape = shape
+	# 单向平台 (图层2): 只从上方站住，从下方和侧面均可穿过
+	if collision_layer == 2:
+		col.one_way_collision = true
 	body.add_child(col)
 	body.position = Vector2(x, y)
 	add_child(body)
@@ -590,9 +676,12 @@ func _create_finish():
 	finish.add_child(flag)
 
 func _create_player():
+	var level_cfg = LEVEL_CONFIGS.get(current_level, LEVEL_CONFIGS[1])
 	player_node = Player.new()
 	player_node.name = "Player"
 	player_node.position = Vector2(80, GROUND_Y - 18)
+	# 将当前关卡宽度传递给玩家，用于 x 轴边界限制
+	player_node.level_width = level_cfg["width"]
 	add_child(player_node)
 
 # ─── HUD 现代化升级 ─────────────────────────────────
@@ -612,7 +701,7 @@ func _create_hud():
 	style.shadow_color = Color(0, 0, 0, 0.3)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(440, 52)
+	panel.size = Vector2(560, 52)
 	layer.add_child(panel)
 	
 	# 金币文本
@@ -655,6 +744,17 @@ func _create_hud():
 	high_score_label.add_theme_font_size_override("font_size", 16)
 	high_score_label.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
 	panel.add_child(high_score_label)
+	
+	# 蝙蝠飞镖技能按键提示
+	var skill_label = Label.new()
+	skill_label.name = "SkillLabel"
+	skill_label.text = "🦇 鼠标左键: 飞镖"
+	skill_label.position = Vector2(430, 12)
+	skill_label.add_theme_font_size_override("font_size", 16)
+	skill_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	skill_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	skill_label.add_theme_constant_override("outline_size", 2)
+	panel.add_child(skill_label)
 	
 	add_child(layer)
 
