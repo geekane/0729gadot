@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "activeGoalId": "9cd5c402-6fca-4043-ae6a-c45a7ac12b61",
+  "activeGoalId": "96c59e4f-9937-43b1-b8c3-d611f76a033e",
   "goals": [
     {
-      "id": "9cd5c402-6fca-4043-ae6a-c45a7ac12b61",
-      "title": "目前角色的绘制代码是如何的？动态是如何实现的，简答分析下？",
+      "id": "96c59e4f-9937-43b1-b8c3-d611f76a033e",
+      "title": "目前基础上纯代码实现好弄不",
       "status": "complete",
       "successCriteria": []
     }

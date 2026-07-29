@@ -26,10 +26,17 @@
 
 | 文件 | 类 | 类型 | 职责 |
 |------|-----|------|------|
-| `Game.gd` | — | `Node2D` | 状态机(632行)、关卡构建、Camera(自定义lerp)、HUD(StyleBoxFlat)、暂停、最高分(ConfigFile)、飘字特效、碰撞响应 |
-| `Player.gd` | — | `CharacterBody2D` | 输入处理、物理、朝向翻转_draw、受伤/无敌/死亡、智能重绘(needs_redraw) |
-| `Enemy.gd` | — | `Area2D` | 巡逻AI、蘑菇怪矢量绘制(阴影/眉毛/大眼)、踩头判定、压扁动画 |
+| `Game.gd` | — | `Node2D` | 状态机、关卡构建、Camera(自定义lerp)、HUD(StyleBoxFlat)、暂停、最高分、飘字特效、碰撞响应 |
+| `Player.gd` | — | `CharacterBody2D` | 输入处理(WASD/Space/左键)、物理、朝向翻转_draw、受伤/无敌/死亡、智能重绘(needs_redraw) |
+| `Boss.gd` | — | `Area2D` | 小丑大 Boss AI (10 HP、头顶动态血条、狂暴二阶段、狂笑扑克弹幕、击败爆裂动画) |
+| `JokerCard.gd` | — | `Area2D` | 小丑狂笑扑克牌弹幕、自旋动画、击中玩家伤害检测 |
+| `Batarang.gd` | — | `Area2D` | 蝙蝠侠飞镖、高速飞行自旋双翼矢量绘制、击中敌/Boss 爆裂消灭 |
+| `Enemy.gd` | — | `Area2D` | 地面巡逻 AI、蘑菇怪矢量绘制(阴影/眉毛/大眼)、踩头判定、压扁动画 |
+| `FlyEnemy.gd` | — | `Area2D` | 飞行蝙蝠怪物 AI、正弦波浮动巡逻绘制 |
 | `Coin.gd` | — | `Area2D` | 浮动动画(bobbing)、椭圆多边形绘制、双保险碰撞检测、收集飞走动画 |
+| `Hazard.gd` | — | `Area2D` | 地刺陷阱、玩家触碰伤害判定 |
+| `MovingPlatform.gd` | — | `AnimatableBody2D` | 动态升降/左右移动单向平台 |
+| `TestRunner.gd` | — | `SceneTree` | 800 帧全自动游玩压测、帧率监控、白闪诊断与渲染快照脚手架 |
 | `Game.tscn` | — | — | 项目入口，引用 Game.gd |
 | `export_presets.cfg` | — | — | Windows 导出配置 |
 
@@ -811,3 +818,11 @@ func _save_all_pending_captures():
 |------|------|------|---------|
 | 关卡拉长后怪物密度下降 (密度稀释) | 越往后关卡越空旷，感觉难度不升反降 | 扩展地图长度 (如 1632px $\rightarrow$ 5000px) 时，怪物生成数量未按比例同步增加，导致密度从 3.75个/1000px 降至 3.20个/1000px | 制定**每千像素密度递增指标**：Level 1~2 控制在 3.0~3.8 个/1000px，Level 3~5 依次提升至 5.0、5.0、4.8 个/1000px |
 | 关卡末段无怪空白盲区 | 接近终点线数百像素内怪物完全消失 | 手动配置敌人生成点数组时，最大 `x` 坐标止步于 `4250px`，距离 `5000px` 终点残留了 750px 的空旷地带 | 敌人生成 `x` 坐标必须覆盖至 `LEVEL_WIDTH - 350px` 的关卡前沿区域，禁止留下 >300px 的无怪空白区 |
+
+### 10.13 鼠标点击事件拦截与输入管道规范
+
+| 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
+|------|------|------|---------|
+| GUI Panel 吸收鼠标左键导致飞镖无法发射 | 在游戏画面中点击鼠标左键无任何响应，飞镖无法发射 | 视口上方顶层 HUD 的 `Panel` 或 `Control` 节点默认 `mouse_filter = MOUSE_FILTER_STOP`，吞噬了所有鼠标点击事件，导致 `Player._unhandled_input()` 永远无法收到左键事件 | 1. 在 HUD `Panel` 上显式设置 `panel.mouse_filter = Control.MOUSE_FILTER_IGNORE`；<br>2. 玩家节点攻击响应统一改用 `_input(event)`（优先于 GUI 传递层级处理）。 |
+| 鼠标左键发射方向与朝向脱节 | 点击左侧画面时飞镖依然朝右射出 | 发射飞镖时仅读取了 `facing_right` 变量，未根据鼠标在全局场景中的 `get_global_mouse_position()` 坐标实时判定 | 在 `shoot_batarang()` 中比对 `mouse_pos.x` 与 `global_position.x`，自动将 `facing_right` 转向鼠标所在方位，实现指哪打哪。 |
+

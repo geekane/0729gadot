@@ -164,7 +164,7 @@ func _draw():
 	draw_polygon(left_eye, PackedColorArray([eye_color]))
 	draw_polygon(right_eye, PackedColorArray([eye_color]))
 
-func _unhandled_input(event):
+func _input(event):
 	if is_dead or input_disabled or just_spawned:
 		return
 	
@@ -302,6 +302,13 @@ func shoot_batarang():
 	var parent_world = get_parent()
 	if not parent_world:
 		return
+		
+	# 根据鼠标位置自动转向 (实现指哪打哪的顺滑手感)
+	var mouse_pos = get_global_mouse_position()
+	if mouse_pos != Vector2.ZERO:
+		var dx = mouse_pos.x - global_position.x
+		if abs(dx) > 5.0:
+			facing_right = (dx > 0)
 		
 	var batarang = Batarang.new()
 	var dir_factor = 1.0 if facing_right else -1.0

@@ -94,9 +94,13 @@ func _on_process_frame():
 			if frame_count % 25 == 0 and p.is_on_floor():
 				p.velocity.y = p.JUMP_VELOCITY
 				
-			# 模拟频繁发射蝙蝠飞镖 (J 键测试)
+			# 模拟频繁发送鼠标左键点击事件 (测试鼠标左键与 J 键通道)
 			if frame_count % 20 == 0:
-				p.shoot_batarang()
+				var mb = InputEventMouseButton.new()
+				mb.button_index = MOUSE_BUTTON_LEFT
+				mb.pressed = true
+				mb.position = Vector2(p.position.x + 100.0 * (1.0 if p.facing_right else -1.0), p.position.y)
+				p._input(mb)
 
 	# ─── 3. 白闪诊断：多维度检测 (仅在游戏运行期 Frame 10+) ──
 	if frame_count >= 10 and frame_count < total_test_frames:

@@ -580,6 +580,12 @@ func _create_world():
 		fe.position = fe_cfg["pos"]
 		fe.patrol_range = fe_cfg["range"]
 		add_child(fe)
+		
+	# 14. 终极关卡 Boss (Level 5 小丑大 Boss 决战)
+	if current_level == 5:
+		var boss = Boss.new()
+		boss.position = Vector2(4650, GROUND_Y - 35)
+		add_child(boss)
 	
 	_create_finish()
 	
@@ -691,6 +697,7 @@ func _create_hud():
 	layer.name = "HUD"
 	
 	var panel = Panel.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 不吸收鼠标事件，保证游戏内左键攻击畅通
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.1, 0.14, 0.24, 0.75)
 	style.corner_radius_top_left = 12
@@ -786,11 +793,21 @@ func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
 	tween.tween_property(label, "modulate:a", 0.0, 0.6)
 	tween.chain().tween_callback(func(): label.hide(); label.queue_free())
 
+func _on_boss_defeated(boss_node):
+	"""小丑大 Boss 被击败后触发"""
+	score += 50
+	_update_score_hud()
+	_spawn_floating_text(boss_node.global_position, "+50 👑 BOSS DOWN!", Color(1.0, 0.85, 0.2))
+	_spawn_particle_burst(boss_node.global_position, Color(1.0, 0.85, 0.1))
+	_spawn_particle_burst(boss_node.global_position + Vector2(-30, -20), Color(0.9, 0.2, 0.9))
+	_spawn_particle_burst(boss_node.global_position + Vector2(30, -20), Color(0.2, 0.9, 0.9))
+
 # ─── 暂停菜单 ──────────────────────────────────────
 
 func _toggle_pause():
 	is_paused = not is_paused
 	get_tree().paused = is_paused
+	Input.flush_buffered_events()  # 清空暂停状态切换时的按键事件缓存
 	
 	if is_paused:
 		pause_overlay = CanvasLayer.new()
