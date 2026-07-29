@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "activeGoalId": "e134fecc-8d92-4a79-85e4-c891dc012b4d",
+  "goals": [
+    {
+      "id": "e134fecc-8d92-4a79-85e4-c891dc012b4d",
+      "title": "这些依靠纯代码好实现吗？",
+      "status": "in_progress",
+      "successCriteria": []
+    }
+  ]
+}

@@ -67,23 +67,31 @@ func _on_process_frame():
 	# ─── 1. 菜单阶段 (Frame 5) ──────────────────────
 	if frame_count == 5:
 		_queue_capture("screenshot_01_menu.png")
-		print("[TestRunner] 模拟空格键按下 -> 触发开始游戏")
+		print("[TestRunner] 模拟空格键按下 -> 触发开始游戏 (Level 1)")
 		game_instance._start_game()
-		# 初始化镜头追踪
 		if game_instance.camera:
 			prev_camera_pos = game_instance.camera.position
 
-	# ─── 2. 游戏内模拟激进游玩 (更频繁方向切换以触发白闪) ──
+	# ─── 2. 游戏内模拟激进游玩与跨关加载 ──────────────
 	elif frame_count > 5 and frame_count < total_test_frames:
+		# 在 Frame 250 模拟通关第 1 关，跳转进入 Level 2
+		if frame_count == 250:
+			print("[TestRunner] 模拟到达 Level 1 终点 -> 触发通关跳转 Level 2")
+			game_instance._win_game()
+			game_instance._go_back_menu()
+		# 在 Frame 500 模拟通关，直接跳转体验终极 Level 5 (5000px 终极关卡)
+		elif frame_count == 500:
+			print("[TestRunner] 模拟跨关挑战 -> 加载 Level 5 (5000px 终极关卡)")
+			game_instance._start_level(5)
+			
 		var p = game_instance.player_node
 		if p and is_instance_valid(p) and not p.is_dead:
-			# 更激进的方向切换：每 20 帧切一次 (原 45 帧)
-			var move_dir = 1.0 if (int(frame_count / 20) % 2 == 0) else -1.0
+			# 持续向右平滑快速推进，探索 5000px 超长地图
+			var move_dir = 1.0 if (int(frame_count / 30) % 4 != 0) else -1.0
 			p.velocity.x = move_dir * p.SPEED
 			p.facing_right = (move_dir > 0)
 			
-			# 每 30 帧跳跃一次 (原 50 帧)，增加空中状态触发率
-			if frame_count % 30 == 0 and p.is_on_floor():
+			if frame_count % 25 == 0 and p.is_on_floor():
 				p.velocity.y = p.JUMP_VELOCITY
 
 	# ─── 3. 白闪诊断：多维度检测 (仅在游戏运行期 Frame 10+) ──

@@ -15,23 +15,201 @@ var high_score = 0
 var lives = 3
 var is_paused = false
 
+# 5 关关卡系统配置
+var current_level = 1
+const MAX_LEVEL = 5
+
+const GROUND_Y = 550
+
 var player_node = null
 var camera = null
 var score_label = null
 var lives_label = null
 var high_score_label = null
+var level_label = null
 
 var overlay = null
 var overlay_label = null
 var overlay_hint = null
 var pause_overlay = null
 
-# 用于 blink 动画的计时器，避免 set_loops tween 导致未响应
 var blink_timer = 0.0
 var blink_visible = true
 
-const LEVEL_WIDTH = 1632
-const GROUND_Y = 550
+# 5 关阶梯难度与长度数据表 (所有地面区域均配备 y=465 登高登台，杜绝地面死胡同)
+const LEVEL_CONFIGS = {
+	1: {
+		"name": "哥谭夜航",
+		"width": 1632,
+		"platforms": [
+			[300, 480, 110, 16], [450, 420, 110, 16], [750, 460, 110, 16], [950, 400, 110, 16],
+			[1200, 450, 110, 16], [1400, 380, 110, 16]
+		],
+		"moving_platforms": [
+			{"pos": Vector2(650, 360), "dist": 90.0, "speed": 1.8, "vertical": false},
+			{"pos": Vector2(1050, 380), "dist": 70.0, "speed": 1.5, "vertical": true}
+		],
+		"hazards": [Vector2(520, 550), Vector2(1020, 550)],
+		"coins": [
+			Vector2(200, 410), Vector2(300, 440), Vector2(450, 370), Vector2(650, 310), Vector2(750, 410),
+			Vector2(950, 350), Vector2(1050, 320), Vector2(1200, 400), Vector2(1400, 330), Vector2(1500, 420)
+		],
+		"ground_enemies": [
+			{"pos": Vector2(300, 538), "range": 160}, {"pos": Vector2(800, 538), "range": 200}, {"pos": Vector2(1300, 538), "range": 180}
+		],
+		"fly_enemies": [
+			{"pos": Vector2(650, 250), "range": 120.0}, {"pos": Vector2(1250, 220), "range": 110.0}
+		]
+	},
+	2: {
+		"name": "兵工厂突袭",
+		"width": 2400,
+		"platforms": [
+			[300, 440, 110, 16], [600, 465, 110, 16], [880, 410, 110, 16], [1150, 465, 110, 16],
+			[1450, 410, 110, 16], [1750, 465, 110, 16], [2050, 410, 110, 16], [2250, 350, 110, 16]
+		],
+		"moving_platforms": [
+			{"pos": Vector2(600, 360), "dist": 90.0, "speed": 1.8, "vertical": false},
+			{"pos": Vector2(1150, 350), "dist": 75.0, "speed": 1.6, "vertical": true},
+			{"pos": Vector2(1450, 330), "dist": 90.0, "speed": 1.8, "vertical": false},
+			{"pos": Vector2(1850, 340), "dist": 70.0, "speed": 2.0, "vertical": true}
+		],
+		"hazards": [Vector2(450, 550), Vector2(920, 550), Vector2(1420, 550), Vector2(1950, 550)],
+		"coins": [
+			Vector2(200, 410), Vector2(300, 390), Vector2(450, 470), Vector2(600, 310), Vector2(750, 400),
+			Vector2(880, 360), Vector2(1000, 450), Vector2(1150, 290), Vector2(1300, 400), Vector2(1450, 280),
+			Vector2(1600, 450), Vector2(1750, 410), Vector2(1850, 280), Vector2(2050, 360), Vector2(2250, 300)
+		],
+		"ground_enemies": [
+			{"pos": Vector2(300, 538), "range": 160}, {"pos": Vector2(750, 538), "range": 180},
+			{"pos": Vector2(1200, 538), "range": 200}, {"pos": Vector2(1650, 538), "range": 180}, {"pos": Vector2(2100, 538), "range": 180}
+		],
+		"fly_enemies": [
+			{"pos": Vector2(500, 260), "range": 110.0}, {"pos": Vector2(950, 220), "range": 130.0},
+			{"pos": Vector2(1450, 240), "range": 120.0}, {"pos": Vector2(1900, 210), "range": 140.0}
+		]
+	},
+	3: {
+		"name": "阿卡姆边缘",
+		"width": 3200,
+		"platforms": [
+			[300, 450, 100, 16], [550, 465, 100, 16], [800, 410, 100, 16], [1050, 465, 100, 16],
+			[1350, 400, 100, 16], [1650, 465, 100, 16], [1950, 400, 100, 16], [2250, 465, 100, 16],
+			[2550, 400, 100, 16], [2850, 465, 100, 16], [3050, 360, 100, 16]
+		],
+		"moving_platforms": [
+			{"pos": Vector2(550, 360), "dist": 100.0, "speed": 2.0, "vertical": false},
+			{"pos": Vector2(1050, 350), "dist": 80.0, "speed": 1.8, "vertical": true},
+			{"pos": Vector2(1650, 340), "dist": 110.0, "speed": 2.0, "vertical": false},
+			{"pos": Vector2(2250, 350), "dist": 80.0, "speed": 2.2, "vertical": true},
+			{"pos": Vector2(2850, 340), "dist": 100.0, "speed": 2.0, "vertical": false}
+		],
+		"hazards": [
+			Vector2(420, 550), Vector2(920, 550), Vector2(1450, 550), Vector2(2050, 550),
+			Vector2(2650, 550)
+		],
+		"coins": [
+			Vector2(150, 420), Vector2(300, 400), Vector2(420, 470), Vector2(550, 310), Vector2(680, 400),
+			Vector2(800, 360), Vector2(920, 470), Vector2(1050, 290), Vector2(1200, 400), Vector2(1350, 340),
+			Vector2(1500, 450), Vector2(1650, 280), Vector2(1800, 400), Vector2(1950, 340), Vector2(2100, 450),
+			Vector2(2250, 290), Vector2(2400, 400), Vector2(2550, 340), Vector2(2700, 450), Vector2(2850, 280)
+		],
+		"ground_enemies": [
+			{"pos": Vector2(250, 538), "range": 150}, {"pos": Vector2(650, 538), "range": 180},
+			{"pos": Vector2(1150, 538), "range": 200}, {"pos": Vector2(1750, 538), "range": 200},
+			{"pos": Vector2(2350, 538), "range": 200}, {"pos": Vector2(2950, 538), "range": 200}
+		],
+		"fly_enemies": [
+			{"pos": Vector2(400, 260), "range": 120.0}, {"pos": Vector2(900, 210), "range": 130.0},
+			{"pos": Vector2(1400, 230), "range": 140.0}, {"pos": Vector2(1900, 200), "range": 150.0},
+			{"pos": Vector2(2500, 220), "range": 130.0}, {"pos": Vector2(3000, 190), "range": 160.0}
+		]
+	},
+	4: {
+		"name": "钟楼决战",
+		"width": 4000,
+		"platforms": [
+			[250, 450, 100, 16], [500, 465, 100, 16], [750, 410, 100, 16], [1000, 465, 100, 16],
+			[1300, 400, 100, 16], [1600, 465, 100, 16], [1900, 400, 100, 16], [2200, 465, 100, 16],
+			[2500, 400, 100, 16], [2800, 465, 100, 16], [3100, 400, 100, 16], [3400, 465, 100, 16],
+			[3750, 360, 100, 16]
+		],
+		"moving_platforms": [
+			{"pos": Vector2(500, 360), "dist": 110.0, "speed": 2.2, "vertical": false},
+			{"pos": Vector2(1000, 350), "dist": 90.0, "speed": 2.0, "vertical": true},
+			{"pos": Vector2(1600, 340), "dist": 120.0, "speed": 2.2, "vertical": false},
+			{"pos": Vector2(2200, 350), "dist": 90.0, "speed": 2.2, "vertical": true},
+			{"pos": Vector2(2800, 330), "dist": 120.0, "speed": 2.4, "vertical": false},
+			{"pos": Vector2(3400, 350), "dist": 90.0, "speed": 2.2, "vertical": true}
+		],
+		"hazards": [
+			Vector2(380, 550), Vector2(880, 550), Vector2(1450, 550), Vector2(2050, 550),
+			Vector2(2650, 550), Vector2(3250, 550)
+		],
+		"coins": [
+			Vector2(150, 420), Vector2(250, 400), Vector2(380, 470), Vector2(500, 310), Vector2(620, 400),
+			Vector2(750, 360), Vector2(880, 470), Vector2(1000, 290), Vector2(1150, 400), Vector2(1300, 340),
+			Vector2(1450, 450), Vector2(1600, 280), Vector2(1750, 400), Vector2(1900, 340), Vector2(2050, 450),
+			Vector2(2200, 290), Vector2(2350, 400), Vector2(2500, 340), Vector2(2650, 450), Vector2(2800, 270),
+			Vector2(2950, 400), Vector2(3100, 340), Vector2(3250, 450), Vector2(3400, 290), Vector2(3750, 300)
+		],
+		"ground_enemies": [
+			{"pos": Vector2(200, 538), "range": 150}, {"pos": Vector2(600, 538), "range": 170},
+			{"pos": Vector2(1100, 538), "range": 190}, {"pos": Vector2(1700, 538), "range": 200},
+			{"pos": Vector2(2300, 538), "range": 200}, {"pos": Vector2(2900, 538), "range": 200},
+			{"pos": Vector2(3500, 538), "range": 220}
+		],
+		"fly_enemies": [
+			{"pos": Vector2(350, 250), "range": 130.0}, {"pos": Vector2(750, 200), "range": 140.0},
+			{"pos": Vector2(1250, 220), "range": 150.0}, {"pos": Vector2(1850, 190), "range": 160.0},
+			{"pos": Vector2(2450, 210), "range": 140.0}, {"pos": Vector2(3050, 180), "range": 170.0},
+			{"pos": Vector2(3650, 200), "range": 150.0}
+		]
+	},
+	5: {
+		"name": "哥谭守护者",
+		"width": 5000,
+		"platforms": [
+			[250, 450, 100, 16], [500, 465, 100, 16], [750, 410, 100, 16], [1000, 465, 100, 16],
+			[1300, 400, 100, 16], [1600, 465, 100, 16], [1900, 400, 100, 16], [2200, 465, 100, 16],
+			[2500, 400, 100, 16], [2800, 465, 100, 16], [3100, 400, 100, 16], [3400, 465, 100, 16],
+			[3700, 400, 100, 16], [4000, 465, 100, 16], [4300, 400, 100, 16], [4700, 360, 100, 16]
+		],
+		"moving_platforms": [
+			{"pos": Vector2(500, 360), "dist": 120.0, "speed": 2.4, "vertical": false},
+			{"pos": Vector2(1000, 350), "dist": 90.0, "speed": 2.2, "vertical": true},
+			{"pos": Vector2(1600, 340), "dist": 130.0, "speed": 2.5, "vertical": false},
+			{"pos": Vector2(2200, 350), "dist": 90.0, "speed": 2.4, "vertical": true},
+			{"pos": Vector2(2800, 330), "dist": 140.0, "speed": 2.6, "vertical": false},
+			{"pos": Vector2(3400, 350), "dist": 90.0, "speed": 2.4, "vertical": true},
+			{"pos": Vector2(4000, 330), "dist": 150.0, "speed": 2.7, "vertical": false}
+		],
+		"hazards": [
+			Vector2(380, 550), Vector2(880, 550), Vector2(1450, 550), Vector2(2050, 550),
+			Vector2(2650, 550), Vector2(3250, 550), Vector2(3850, 550), Vector2(4450, 550)
+		],
+		"coins": [
+			Vector2(120, 420), Vector2(250, 400), Vector2(380, 470), Vector2(500, 310), Vector2(620, 400),
+			Vector2(750, 360), Vector2(880, 470), Vector2(1000, 290), Vector2(1150, 400), Vector2(1300, 340),
+			Vector2(1450, 450), Vector2(1600, 280), Vector2(1750, 400), Vector2(1900, 340), Vector2(2050, 450),
+			Vector2(2200, 290), Vector2(2350, 400), Vector2(2500, 340), Vector2(2650, 450), Vector2(2800, 270),
+			Vector2(2950, 400), Vector2(3100, 340), Vector2(3250, 450), Vector2(3400, 290), Vector2(3550, 400),
+			Vector2(3700, 340), Vector2(3850, 450), Vector2(4000, 270), Vector2(4300, 340), Vector2(4700, 300)
+		],
+		"ground_enemies": [
+			{"pos": Vector2(180, 538), "range": 140}, {"pos": Vector2(600, 538), "range": 160},
+			{"pos": Vector2(1100, 538), "range": 180}, {"pos": Vector2(1700, 538), "range": 200},
+			{"pos": Vector2(2300, 538), "range": 200}, {"pos": Vector2(2900, 538), "range": 200},
+			{"pos": Vector2(3500, 538), "range": 220}, {"pos": Vector2(4200, 538), "range": 240}
+		],
+		"fly_enemies": [
+			{"pos": Vector2(300, 250), "range": 130.0}, {"pos": Vector2(750, 200), "range": 140.0},
+			{"pos": Vector2(1250, 220), "range": 150.0}, {"pos": Vector2(1850, 190), "range": 160.0},
+			{"pos": Vector2(2450, 210), "range": 140.0}, {"pos": Vector2(3050, 180), "range": 170.0},
+			{"pos": Vector2(3650, 200), "range": 150.0}, {"pos": Vector2(4250, 170), "range": 180.0}
+		]
+	}
+}
 
 # ─── 状态管理 ──────────────────────────────────────
 
@@ -41,7 +219,6 @@ func _ready():
 	_load_high_score()
 	_create_menu()
 
-
 func _process(delta):
 	match state:
 		GameState.MENU:
@@ -49,11 +226,11 @@ func _process(delta):
 			if Input.is_action_just_pressed("ui_accept"):
 				_start_game()
 		GameState.PLAYING:
-			# 镜头平滑跟随玩家 (使用 lerp 插值，消除原内置 Smoothing 强刷引发的画面抖动/掉帧)
+			# 镜头平滑跟随玩家 (使用 lerp 插值)
 			if camera and player_node and is_instance_valid(camera) and is_instance_valid(player_node):
 				var weight = clamp(12.0 * delta, 0.0, 1.0)
 				camera.position = camera.position.lerp(player_node.position, weight)
-				# 掉落死亡：玩家掉出关卡底部（防物理bug软锁）
+				# 掉落死亡判定
 				if player_node.position.y > GROUND_Y + 100:
 					_on_player_hit(player_node)
 		GameState.WON, GameState.GAME_OVER:
@@ -69,15 +246,13 @@ func _unhandled_input(event):
 		elif is_paused and event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_R:
 				_toggle_pause()
-				_start_game()
+				_start_level(current_level)
 				get_viewport().set_input_as_handled()
 			elif event.keycode == KEY_M:
 				_toggle_pause()
 				_go_back_menu()
 				get_viewport().set_input_as_handled()
 
-
-# 安全的闪烁效果（用 timer 替代 infinite tween）
 func _blink_step(delta):
 	if not overlay_hint or not is_instance_valid(overlay_hint):
 		return
@@ -110,7 +285,6 @@ func _create_menu():
 	blink_timer = 0.0
 	blink_visible = true
 	
-	# 深色绚丽渐变背景
 	var bg = ColorRect.new()
 	bg.color = Color(0.08, 0.1, 0.22, 1.0)
 	bg.size = Vector2(2400, 1600)
@@ -118,7 +292,6 @@ func _create_menu():
 	bg.name = "MenuBG"
 	add_child(bg)
 	
-	# 背景装饰点阵/星光
 	var stars = Node2D.new()
 	stars.name = "Stars"
 	for i in range(40):
@@ -130,7 +303,6 @@ func _create_menu():
 		stars.add_child(star)
 	add_child(stars)
 	
-	# 主卡片面板
 	var panel = Panel.new()
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.16, 0.28, 0.85)
@@ -146,7 +318,6 @@ func _create_menu():
 	panel.name = "MenuPanel"
 	add_child(panel)
 	
-	# 标题
 	var title = Label.new()
 	title.text = "🦇 哥谭大冒险：蝙蝠侠出击"
 	title.add_theme_font_size_override("font_size", 42)
@@ -158,7 +329,6 @@ func _create_menu():
 	title.size = Vector2(600, 60)
 	panel.add_child(title)
 
-	# 操作说明卡片
 	var instr_box = Panel.new()
 	var ib_style = StyleBoxFlat.new()
 	ib_style.bg_color = Color(0.06, 0.08, 0.16, 0.6)
@@ -167,39 +337,43 @@ func _create_menu():
 	ib_style.corner_radius_bottom_left = 10
 	ib_style.corner_radius_bottom_right = 10
 	instr_box.add_theme_stylebox_override("panel", ib_style)
-	instr_box.position = Vector2(50, 150)
-	instr_box.size = Vector2(500, 140)
+	instr_box.position = Vector2(50, 140)
+	instr_box.size = Vector2(500, 160)
 	panel.add_child(instr_box)
 	
 	var instr = Label.new()
-	instr.text = "【蝙蝠侠战术操作】\n\n• A / D  或  ← → 键：蝙蝠战衣平滑巡航\n• Space / W / ↑ 键：蝙蝠披风高跳 / 跃上平台\n• ESC 键：暂停战术菜单  |  踩在怪物头顶将其制裁"
+	instr.text = "【蝙蝠侠战术指南 - 共 5 关】\n\n• A / D 或 ← → 键：蝙蝠战衣平滑巡航\n• Space / W / ↑ 键：蝙蝠披风高跳 / 跃上平台\n• ESC 键：暂停菜单 | 沿平台与登高梯跳跃，闪避怪物与地刺"
 	instr.add_theme_font_size_override("font_size", 16)
 	instr.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0, 0.85))
 	instr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	instr.position = Vector2(10, 12)
-	instr.size = Vector2(480, 116)
+	instr.size = Vector2(480, 136)
 	instr_box.add_child(instr)
 	
-	# 开始提示
 	overlay = CanvasLayer.new()
 	overlay.name = "Overlay"
 	overlay_label = Label.new()
-	overlay_label.text = "按 空格键 扮演蝙蝠侠出击"
+	overlay_label.text = "按 空格键 开始 Level 1 出击"
 	overlay_label.add_theme_font_size_override("font_size", 28)
 	overlay_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 0.95))
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	overlay_label.add_theme_constant_override("outline_size", 4)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	overlay_label.position = Vector2(276, 420)
+	overlay_label.position = Vector2(276, 425)
 	overlay_label.size = Vector2(600, 45)
 	overlay.add_child(overlay_label)
 	add_child(overlay)
 	overlay_hint = overlay_label
 
 func _start_game():
-	state = GameState.PLAYING
+	current_level = 1
 	score = 0
 	lives = 3
+	_start_level(current_level)
+
+func _start_level(level_idx: int):
+	state = GameState.PLAYING
+	current_level = level_idx
 	is_paused = false
 	get_tree().paused = false
 	blink_timer = 0.0
@@ -210,21 +384,26 @@ func _start_game():
 	overlay_hint = null
 	pause_overlay = null
 	
-	# 安全删除所有菜单子节点
 	var kids = get_children()
 	for c in kids:
-		if c.name in ["MenuBG", "Stars", "MenuPanel", "Overlay"]:
-			c.queue_free()
+		c.queue_free()
 	
 	_create_world()
 	_create_player()
 	_create_hud()
 	
-	# 镜头初始化直接贴合玩家位置
 	if camera and player_node:
 		camera.position = player_node.position
 
 func _go_back_menu():
+	# 若处于通关界面且未满 5 关，空格键进入下一关
+	if state == GameState.WON and current_level < MAX_LEVEL:
+		current_level += 1
+		_start_level(current_level)
+		return
+		
+	# 返回主菜单重置
+	current_level = 1
 	_overlay = null
 	overlay = null
 	overlay_label = null
@@ -235,6 +414,7 @@ func _go_back_menu():
 	score_label = null
 	lives_label = null
 	high_score_label = null
+	level_label = null
 	is_paused = false
 	get_tree().paused = false
 	
@@ -247,176 +427,121 @@ func _go_back_menu():
 # ─── 世界构建 ──────────────────────────────────────
 
 func _create_world():
-	# 1. 哥谭夜空底板 (适度调浅明度为 Color(0.12, 0.16, 0.28)，使暗色蝙蝠侠轮廓清晰突出)
+	var level_cfg = LEVEL_CONFIGS.get(current_level, LEVEL_CONFIGS[1])
+	var cur_width = level_cfg["width"]
+	
+	# 1. 哥谭夜空底板
 	var sky_bg = ColorRect.new()
 	sky_bg.color = Color(0.12, 0.16, 0.28, 1.0)
-	sky_bg.size = Vector2(LEVEL_WIDTH + 800, 1400)
+	sky_bg.size = Vector2(cur_width + 800, 1400)
 	sky_bg.position = Vector2(-400, -400)
 	sky_bg.name = "WorldSkyBG"
 	add_child(sky_bg)
 
-	# 2. 哥谭明月 (Glowing Round Moon)
+	# 2. 哥谭明月
 	var moon = ColorRect.new()
 	moon.color = Color(1.0, 0.95, 0.7, 0.9)
 	moon.size = Vector2(65, 65)
-	moon.position = Vector2(1320, 20)
+	moon.position = Vector2(cur_width - 310, 20)
 	add_child(moon)
 	
-	# 3. 哥谭夜空柔和浮云 (Gotham Night Clouds)
+	# 3. 哥谭夜空柔和浮云
 	var clouds_data = [
-		[100, 20, 180, 50],
-		[450, -30, 220, 60],
-		[850, 10, 200, 55],
-		[1200, -40, 260, 70],
-		[1500, 30, 190, 50]
+		[100, 20, 180, 50], [450, -30, 220, 60], [850, 10, 200, 55],
+		[1200, -40, 260, 70], [1600, 30, 190, 50], [2100, -20, 240, 60],
+		[2600, 10, 210, 55], [3200, -30, 250, 65], [3800, 20, 200, 50], [4400, -10, 230, 60]
 	]
 	for cd in clouds_data:
-		var cloud = ColorRect.new()
-		cloud.color = Color(0.22, 0.28, 0.42, 0.45)
-		cloud.size = Vector2(cd[2], cd[3])
-		cloud.position = Vector2(cd[0], cd[1])
-		add_child(cloud)
+		if cd[0] < cur_width + 200:
+			var cloud = ColorRect.new()
+			cloud.color = Color(0.22, 0.28, 0.42, 0.45)
+			cloud.size = Vector2(cd[2], cd[3])
+			cloud.position = Vector2(cd[0], cd[1])
+			add_child(cloud)
 
-	# 4. 极淡蝙蝠探照信号灯束 (Subtle Bat-Signal Spotlight Beam)
+	# 4. 探照灯
 	var bat_signal = Polygon2D.new()
 	bat_signal.color = Color(1.0, 0.9, 0.3, 0.08)
 	bat_signal.polygon = PackedVector2Array([
-		Vector2(1150, 480), Vector2(1050, -150), Vector2(1300, -150)
+		Vector2(cur_width - 480, 480), Vector2(cur_width - 580, -150), Vector2(cur_width - 330, -150)
 	])
 	add_child(bat_signal)
 
-	# 5. 哥谭摩天大楼天际线 (低节点开销，精简视觉效果)
-	var buildings_data = [
-		[-100, 140, 200], [70, 120, 240], [210, 150, 180], [380, 140, 260],
-		[540, 130, 210], [700, 160, 190], [890, 140, 250], [1050, 150, 220],
-		[1220, 130, 270], [1380, 160, 200], [1560, 150, 230]
-	]
-	for b in buildings_data:
-		var bx = b[0]
-		var bw = b[1]
-		var bh = b[2]
+	# 5. 哥谭摩天大楼天际线
+	for bx in range(-100, cur_width + 100, 180):
+		var bw = 140.0
+		var bh = 220.0
 		var building = ColorRect.new()
 		building.color = Color(0.16, 0.2, 0.32, 0.95)
 		building.size = Vector2(bw, bh)
 		building.position = Vector2(bx, GROUND_Y - bh + 25)
 		add_child(building)
 		
-		# 少数几扇柔和窗口，避免节点过度膨胀
 		var win1 = ColorRect.new()
 		win1.color = Color(1.0, 0.88, 0.35, 0.35)
 		win1.size = Vector2(10, 14)
 		win1.position = Vector2(bx + 20, GROUND_Y - bh + 50)
 		add_child(win1)
-		
-		var win2 = ColorRect.new()
-		win2.color = Color(0.4, 0.85, 1.0, 0.3)
-		win2.size = Vector2(10, 14)
-		win2.position = Vector2(bx + bw - 30, GROUND_Y - bh + 90)
-		add_child(win2)
 
+	# 6. 相机极限范围
 	var cam = Camera2D.new()
 	cam.name = "Camera2D"
 	cam.enabled = true
 	cam.position_smoothing_enabled = false
 	cam.limit_left = 0
-	cam.limit_right = LEVEL_WIDTH
+	cam.limit_right = cur_width
 	cam.limit_top = -200
 	cam.limit_bottom = 600
 	add_child(cam)
 	camera = cam
 
-
-
+	# 7. 地面物理
+	_add_static_rect(cur_width / 2.0, GROUND_Y + 25, cur_width, 50, Color(0.28, 0.22, 0.16))
 	
-	# 地面
-	_add_static_rect(LEVEL_WIDTH / 2, GROUND_Y + 25, LEVEL_WIDTH, 50, Color(0.28, 0.22, 0.16))
-	
-	# 草地装饰线
 	var grass = ColorRect.new()
 	grass.color = Color(0.25, 0.65, 0.2)
-	grass.size = Vector2(LEVEL_WIDTH, 6)
+	grass.size = Vector2(cur_width, 6)
 	grass.position = Vector2(0, GROUND_Y - 2)
 	add_child(grass)
 	
-	# 浮空平台（静态 + 动态移动平台）
-	var platform_data = [
-		[400, 428, 120, 16],
-		[900, 338, 120, 16],
-		[1150, 293, 120, 16],
-		[1400, 248, 120, 16],
-		[300, 488, 100, 16],
-		[750, 458, 100, 16],
-	]
-	for pd in platform_data:
+	# 8. 静态平台
+	for pd in level_cfg["platforms"]:
 		_add_static_rect(pd[0], pd[1], pd[2], pd[3], Color(0.32, 0.2, 0.1), 2)
 		
-	# 动态移动单向平台 (Moving Platforms)
-	var mp1 = MovingPlatform.new()
-	mp1.position = Vector2(650, 380)
-	mp1.move_distance = 110.0
-	mp1.move_speed = 2.0
-	add_child(mp1)
-	
-	var mp2 = MovingPlatform.new()
-	mp2.position = Vector2(1050, 400)
-	mp2.move_distance = 90.0
-	mp2.move_speed = 1.6
-	mp2.is_vertical = true
-	add_child(mp2)
+	# 9. 动态移动平台
+	for mpd in level_cfg["moving_platforms"]:
+		var mp = MovingPlatform.new()
+		mp.position = mpd["pos"]
+		mp.move_distance = mpd["dist"]
+		mp.move_speed = mpd["speed"]
+		mp.is_vertical = mpd["vertical"]
+		add_child(mp)
 
-	# 地刺陷阱 (Hazard Spikes)
-	var h1 = Hazard.new()
-	h1.position = Vector2(520, GROUND_Y)
-	add_child(h1)
-	
-	var h2 = Hazard.new()
-	h2.position = Vector2(1020, GROUND_Y)
-	add_child(h2)
+	# 10. 地刺陷阱
+	for hz_pos in level_cfg["hazards"]:
+		var h = Hazard.new()
+		h.position = hz_pos
+		add_child(h)
 
-	# 金币
-	var coin_positions = [
-		Vector2(200, 410),
-		Vector2(400, 408),
-		Vector2(550, 470),
-		Vector2(650, 320),
-		Vector2(750, 440),
-		Vector2(900, 318),
-		Vector2(1050, 330),
-		Vector2(1100, 388),
-		Vector2(1150, 273),
-		Vector2(1400, 228),
-	]
-	for pos in coin_positions:
+	# 11. 金币
+	for coin_pos in level_cfg["coins"]:
 		var coin = Coin.new()
-		coin.position = pos
+		coin.position = coin_pos
 		add_child(coin)
 	
-	# 地面追击敌人 (Ground Chasing Enemies)
-	var e1 = Enemy.new()
-	e1.position = Vector2(300, GROUND_Y - 12)
-	e1.patrol_range = 200
-	add_child(e1)
+	# 12. 地面敌人
+	for ge_cfg in level_cfg["ground_enemies"]:
+		var e = Enemy.new()
+		e.position = ge_cfg["pos"]
+		e.patrol_range = ge_cfg["range"]
+		add_child(e)
 	
-	var e2 = Enemy.new()
-	e2.position = Vector2(800, GROUND_Y - 12)
-	e2.patrol_range = 250
-	add_child(e2)
-	
-	var e3 = Enemy.new()
-	e3.position = Vector2(1300, GROUND_Y - 12)
-	e3.patrol_range = 180
-	add_child(e3)
-	
-	# 飞行小丑无人机敌人 (Fly Drone Enemies)
-	var fe1 = FlyEnemy.new()
-	fe1.position = Vector2(700, 260)
-	fe1.patrol_range = 140.0
-	add_child(fe1)
-	
-	var fe2 = FlyEnemy.new()
-	fe2.position = Vector2(1250, 210)
-	fe2.patrol_range = 120.0
-	add_child(fe2)
+	# 13. 飞行敌人
+	for fe_cfg in level_cfg["fly_enemies"]:
+		var fe = FlyEnemy.new()
+		fe.position = fe_cfg["pos"]
+		fe.patrol_range = fe_cfg["range"]
+		add_child(fe)
 	
 	_create_finish()
 
@@ -434,10 +559,12 @@ func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	var vis = ColorRect.new()
 	vis.color = color
 	vis.size = Vector2(w, h)
-	vis.position = Vector2(-w/2, -h/2)
+	vis.position = Vector2(-w/2.0, -h/2.0)
 	body.add_child(vis)
 
 func _create_finish():
+	var level_cfg = LEVEL_CONFIGS.get(current_level, LEVEL_CONFIGS[1])
+	var cur_width = level_cfg["width"]
 	var finish = Area2D.new()
 	finish.name = "Finish"
 	finish.collision_mask = 1
@@ -446,7 +573,7 @@ func _create_finish():
 	var col = CollisionShape2D.new()
 	col.shape = shape
 	finish.add_child(col)
-	finish.position = Vector2(1560, GROUND_Y - 50)
+	finish.position = Vector2(cur_width - 72, GROUND_Y - 50)
 	finish.body_entered.connect(_on_finish_entered)
 	add_child(finish)
 	
@@ -474,7 +601,6 @@ func _create_hud():
 	var layer = CanvasLayer.new()
 	layer.name = "HUD"
 	
-	# HUD 主背景容器
 	var panel = Panel.new()
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.1, 0.14, 0.24, 0.75)
@@ -486,13 +612,13 @@ func _create_hud():
 	style.shadow_color = Color(0, 0, 0, 0.3)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(320, 52)
+	panel.size = Vector2(440, 52)
 	layer.add_child(panel)
 	
 	# 金币文本
 	score_label = Label.new()
 	score_label.name = "ScoreLabel"
-	score_label.text = "💰 金币: 0"
+	score_label.text = "💰 " + str(score)
 	score_label.position = Vector2(14, 12)
 	score_label.add_theme_font_size_override("font_size", 18)
 	score_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
@@ -500,23 +626,32 @@ func _create_hud():
 	score_label.add_theme_constant_override("outline_size", 2)
 	panel.add_child(score_label)
 
-	
 	# 生命文本 (爱心)
 	lives_label = Label.new()
 	lives_label.name = "LivesLabel"
 	lives_label.text = "❤️ ❤️ ❤️"
-	lives_label.position = Vector2(140, 12)
+	lives_label.position = Vector2(105, 12)
 	lives_label.add_theme_font_size_override("font_size", 18)
 	lives_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
 	lives_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	lives_label.add_theme_constant_override("outline_size", 2)
 	panel.add_child(lives_label)
+	_update_lives_hud()
+	
+	# 关卡进度
+	level_label = Label.new()
+	level_label.name = "LevelLabel"
+	level_label.text = "🚩 Level %d/5" % current_level
+	level_label.position = Vector2(215, 12)
+	level_label.add_theme_font_size_override("font_size", 17)
+	level_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	panel.add_child(level_label)
 	
 	# 最高分
 	high_score_label = Label.new()
 	high_score_label.name = "HighScoreLabel"
 	high_score_label.text = "👑 " + str(high_score)
-	high_score_label.position = Vector2(250, 12)
+	high_score_label.position = Vector2(345, 12)
 	high_score_label.add_theme_font_size_override("font_size", 16)
 	high_score_label.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0))
 	panel.add_child(high_score_label)
@@ -580,8 +715,8 @@ func _toggle_pause():
 		pause_overlay.add_child(panel)
 		
 		var p_title = Label.new()
-		p_title.text = "⏸️ 游戏暂停"
-		p_title.add_theme_font_size_override("font_size", 32)
+		p_title.text = "⏸️ 游戏暂停 (Level %d)" % current_level
+		p_title.add_theme_font_size_override("font_size", 28)
 		p_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 		p_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		p_title.position = Vector2(0, 30)
@@ -589,7 +724,7 @@ func _toggle_pause():
 		panel.add_child(p_title)
 		
 		var p_hint = Label.new()
-		p_hint.text = "按 ESC 键恢复游戏\n按 R 键重新开始\n按 M 键返回主菜单"
+		p_hint.text = "按 ESC 键恢复游戏\n按 R 键重试本关\n按 M 键返回主菜单"
 		p_hint.add_theme_font_size_override("font_size", 18)
 		p_hint.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95, 0.9))
 		p_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -638,7 +773,7 @@ func _on_coin_collected(coin):
 		return
 	score += 1
 	if score_label and is_instance_valid(score_label):
-		score_label.text = "💰 金币: " + str(score)
+		score_label.text = "💰 " + str(score)
 	if coin:
 		_spawn_floating_text(coin.position, "+1", Color(1.0, 0.9, 0.2))
 		_spawn_particle_burst(coin.position, Color(1.0, 0.85, 0.2))
@@ -648,7 +783,7 @@ func _on_enemy_stomped(enemy):
 		return
 	score += 2
 	if score_label and is_instance_valid(score_label):
-		score_label.text = "💰 金币: " + str(score)
+		score_label.text = "💰 " + str(score)
 	if enemy:
 		_spawn_floating_text(enemy.position, "+2", Color(0.3, 1.0, 0.4))
 		_spawn_particle_burst(enemy.position, Color(0.9, 0.2, 0.15))
@@ -662,7 +797,6 @@ func _player_hurt(body):
 			_spawn_particle_burst(body.position, Color(1.0, 0.3, 0.3))
 			if lives <= 0:
 				body.die()
-				# 延迟弹出 Game Over 界面，等死亡动画显示
 				var timer = get_tree().create_timer(0.4)
 				timer.timeout.connect(func(): _game_over())
 
@@ -677,7 +811,6 @@ func _on_finish_entered(body):
 	if body.is_in_group("player"):
 		_win_game()
 
-
 # ─── 弹出层 ────────────────────────────────────────
 
 var _overlay = null
@@ -687,7 +820,6 @@ func _show_overlay(title_text, title_color, hint_text):
 		pause_overlay.hide()
 		pause_overlay.queue_free()
 		pause_overlay = null
-
 		
 	_overlay = CanvasLayer.new()
 	_overlay.name = "GameOverlay"
@@ -713,7 +845,7 @@ func _show_overlay(title_text, title_color, hint_text):
 	
 	overlay_label = Label.new()
 	overlay_label.text = title_text
-	overlay_label.add_theme_font_size_override("font_size", 42)
+	overlay_label.add_theme_font_size_override("font_size", 36)
 	overlay_label.add_theme_color_override("font_color", title_color)
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	overlay_label.add_theme_constant_override("outline_size", 5)
@@ -723,7 +855,6 @@ func _show_overlay(title_text, title_color, hint_text):
 	overlay_label.size = Vector2(500, 60)
 	panel.add_child(overlay_label)
 	
-	# 最高分突破判断与展示
 	var is_new_record = false
 	if score > high_score:
 		high_score = score
@@ -731,7 +862,7 @@ func _show_overlay(title_text, title_color, hint_text):
 		is_new_record = true
 	
 	var score_info = Label.new()
-	score_info.text = "本次得分: " + str(score) + ("  (🎉 刷新最高纪录!)" if is_new_record else "  (最高: " + str(high_score) + ")")
+	score_info.text = "累计得分: " + str(score) + ("  (🎉 刷新最高纪录!)" if is_new_record else "  (最高: " + str(high_score) + ")")
 	score_info.add_theme_font_size_override("font_size", 20)
 	score_info.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3) if is_new_record else Color(0.85, 0.9, 1.0))
 	score_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -752,7 +883,6 @@ func _show_overlay(title_text, title_color, hint_text):
 	
 	add_child(_overlay)
 	
-	# 重置 blink 状态，下一帧 _process 开始闪烁
 	blink_timer = 0.0
 	blink_visible = true
 	overlay_hint.modulate.a = 0.95
@@ -761,11 +891,13 @@ func _win_game():
 	state = GameState.WON
 	if player_node:
 		player_node.input_disabled = true
-	_show_overlay("🎉  关 卡 通 关  🎉", Color(0.35, 1.0, 0.4), "按 空格键 返回主菜单")
+	if current_level < MAX_LEVEL:
+		_show_overlay("🎉  第 %d 关 通 关  🎉" % current_level, Color(0.35, 1.0, 0.4), "按 空格键 挑战第 %d 关" % (current_level + 1))
+	else:
+		_show_overlay("🏆  哥 谭 守 护 者  🏆", Color(1.0, 0.85, 0.2), "🎉 全 关 卡 通 关！按 空格键 返回主菜单")
 
 func _game_over():
 	state = GameState.GAME_OVER
 	if player_node:
 		player_node.input_disabled = true
 	_show_overlay("💀  游 戏 结 束  💀", Color(1.0, 0.35, 0.35), "按 空格键 返回主菜单")
-
