@@ -1,15 +1,14 @@
 {
   "version": 1,
   "goal": {
-    "id": "93bdbc62-fffd-4140-8604-4f113267c71b",
+    "id": "1d3b760e-b4c7-4f07-9a33-5ff853987f41",
     "sessionID": "ses_053714cd9ffeDDYTzJIX6HkaGw",
-    "objective": "将完整方案汇总形成一个md",
-    "status": "complete",
+    "objective": "Continue",
+    "status": "active",
     "tokensUsed": 0,
     "timeUsedSeconds": 0,
-    "createdAt": 1785319097,
-    "updatedAt": 1785319186,
-    "lastStartedAt": 1785319097,
-    "completedAt": 1785319186
+    "createdAt": 1785323991,
+    "updatedAt": 1785323991,
+    "lastStartedAt": 1785323991
   }
 }

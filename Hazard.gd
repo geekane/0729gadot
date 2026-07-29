@@ -1,5 +1,29 @@
 extends Area2D
 
+const PixelLib = preload("res://pixel_lib.gd")
+
+# 像素尖刺调色板
+var PALETTE = {
+	"S": Color(0.55, 0.6, 0.68),
+	"D": Color(0.2, 0.22, 0.28),
+	"R": Color(0.9, 0.2, 0.2),
+	".": Color.TRANSPARENT,
+}
+
+# 像素尖刺数据 (20×10, 3 spikes)
+var SPIKE_DATA = [
+	"....R......R......R.",
+	"....RR....RR....RR..",
+	"...SSR...SSR...SSR..",
+	"..SSSR..SSSR..SSSR..",
+	".SSSSR.SSSSR.SSSSR..",
+	"SSSSRRSSSSRRSSSSRR..",
+	"SSSSDDSSSSDDSSSSDD..",
+	".SSSD..SSSD..SSSD...",
+	"..DD....DD....DD....",
+	"..DD....DD....DD....",
+]
+
 # 地刺陷阱节点 (Spike Hazard)
 var spike_width = 40.0
 var spike_height = 20.0
@@ -22,32 +46,15 @@ func _ready():
 	add_child(col)
 	
 	body_entered.connect(_on_body_entered)
-	queue_redraw()
-
-func _draw():
-	# 矢量绘制锯齿尖刺金属阵列
-	var start_x = -spike_width / 2.0
-	var single_w = spike_width / float(spike_count)
 	
-	for i in range(spike_count):
-		var x1 = start_x + i * single_w
-		var x2 = x1 + single_w / 2.0
-		var x3 = x1 + single_w
-		
-		# 金属阴影底座
-		var shadow_triangle = PackedVector2Array([
-			Vector2(x1, 0), Vector2(x2, -spike_height), Vector2(x3, 0)
-		])
-		draw_polygon(shadow_triangle, PackedColorArray([Color(0.2, 0.22, 0.28)]))
-		
-		# 高光主体
-		var main_triangle = PackedVector2Array([
-			Vector2(x1 + 1.0, 0), Vector2(x2, -spike_height + 2.0), Vector2(x3 - 1.0, 0)
-		])
-		draw_polygon(main_triangle, PackedColorArray([Color(0.55, 0.6, 0.68)]))
-		
-		# 尖端危险红光提示
-		draw_line(Vector2(x2 - 1.0, -spike_height + 3.0), Vector2(x2, -spike_height + 1.0), Color(0.9, 0.2, 0.2), 2.0)
+	# 像素精灵 — 替代矢量绘制
+	var tex = PixelLib.create_texture(20, 10, SPIKE_DATA, PALETTE)
+	var sprite = Sprite2D.new()
+	sprite.texture = tex
+	sprite.scale = Vector2(2.0, 2.0)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.position = Vector2(0, -spike_height * 0.4)  # 对齐碰撞体中心
+	add_child(sprite)
 
 func _on_body_entered(body):
 	if body.is_in_group("player"):

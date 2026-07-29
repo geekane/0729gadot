@@ -711,7 +711,74 @@ func _save_all_pending_captures():
 
 ---
 
-## 11. 踩坑与最佳实践汇总
+## 11. 纯代码像素风改造记录
+
+### 11.1 改造策略
+
+采用**混合策略 C→B 渐进式**：从背景开始逐步替换，不改变碰撞体。
+
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| 0 | `pixel_config.gd` + `pixel_lib.gd` 基础设施 | ✅ 完成 |
+| 1 | 背景像素化（月亮/大楼/云/管道/草地） | ✅ 完成 |
+| 2 | 道具+UI（Coin/Hazard/HUD 图标） | ❌ 待做 |
+| 3 | 角色像素化（Player） | ❌ 待做 |
+| 4 | 敌人像素化（Enemy/FlyEnemy/Boss） | ❌ 待做 |
+| 5 | 特效+菜单抛光 | ❌ 待做 |
+
+### 11.2 关键文件
+
+| 文件 | 职责 |
+|------|------|
+| `pixel_config.gd` | 全局视口 NEAREST 滤波配置 |
+| `pixel_lib.gd` | 像素图工具库（`create_texture` / `create_anim_textures` / `setup_animated_sprite` / `fill_circle` / `fill_rect`）|
+| `pixel_background.gd` | 像素背景元素生成器（月亮/大楼/云/草地/管道）|
+
+### 11.3 PixelConfig API 注意事项
+
+```gdscript
+# ✅ 正确：直接在 Viewport 上设（Godot 4.7）
+viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+
+# ❌ 错误：Texture2D 资源上没有 texture_filter 属性
+# tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # 运行时报错
+```
+
+`texture_filter` 是 `CanvasItem`（节点）的属性，不是 `Texture2D`（资源）的属性。全局配置由 `PixelConfig.apply(viewport)` 在 `Game.gd._ready()` 中一次性设置。
+
+### 11.4 PixelLib 使用模式
+
+```gdscript
+# 创建单帧纹理
+var tex = PixelLib.create_texture(16, 16, pixels_data, palette_dict)
+
+# 批量生成动画帧
+var texs = PixelLib.create_anim_textures(frames_data, palette, 12, 18)
+
+# 填充 AnimatedSprite2D
+PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
+```
+
+`palette` 字典格式：`{"R": Color(1,0,0), ".": Color.TRANSPARENT, ...}`
+像素数据格式：每字符串一行，字符映射调色板 key。
+
+### 11.5 PixelBackground 生成器
+
+所有背景纹理用 `Image.create()` + 逐像素 `set_pixel()` 或 `PixelLib.fill_rect()` 生成：
+
+- `create_pixel_moon(size)`: 块状像素月亮 + 陨石坑
+- `create_building_texture(w, h, base_color, window_color, seed)`: 像素大楼（窗格+天线）
+- `create_cloud_texture(w, h)`: 半透像素云朵（多圆叠合）
+- `create_grass_texture(w, h)`: 像素草地渐变
+- `create_pipe_texture()`: 像素管道护栏
+
+### 11.6 背景替换留下的死代码
+
+`Game.gd._process()` 中 `flicker_windows` 组循环已清理（窗光现已嵌入大楼纹理）。
+
+---
+
+## 12. 踩坑与最佳实践汇总
 
 本项目的所有踩坑记录分类汇总，方便快速查找原因和最佳方案。
 
@@ -833,4 +900,11 @@ func _save_all_pending_captures():
 | 主菜单面板堆叠大段文本导致拥挤 | 菜单画面像说明书而非游戏主界面 | 将操作说明框直接放进了 `MenuPanel` 中，占据了 40% 的界面空间 | 彻底解耦主菜单与说明文字：主面板仅保留垂直一字排开的 5 大功能按键；操作指南改由点击 `⚙️ 操作指南` 按钮后调用 `_show_controls_dialog()` 弹出干净独立弹窗。 |
 | 探照灯摇摆光束与云层徽标不同步 | 光束往左摇，但云层上的蝙蝠黑影在右边 | 探照灯光束与云层 Bat Silhouette 顶点独立计算了不同的 `sweep_angle` 偏移量 | 在 `BatSignalBeam` 的 `_draw()` 回调中统一使用相同的 `top_center = Vector2(base_x + sin(sweep_angle) * range, top_y)` 坐标基准，确保光束顶端与云层 Projection Emblem 100% 紧密重合。 |
 | `--export-release` 导出 `game.tmp` 无法重命名失败 | 执行导出命令提示 Error Code 1 失败 | 导出的目标可执行文件 `build/game.exe` 正在 Windows 系统后台中运行，句柄被系统进程占用锁住 | 导出前必须执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留游戏进程后再执行导出命令。 |
+
+### 10.15 长关卡卡顿诊断与 Roguelike 循环素材复用规范
+
+| 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
+|------|------|------|---------|
+| 长关卡 (Level 4/5) 帧率大幅掉落与 Process 耗时暴涨 | Level 4/5 画面明显卡顿，Process 耗时高达 140ms ~ 170ms | `_create_world()` 根据 `cur_width` (4000px/5000px) 盲目线性生成了 100+ 栋大楼 Sprite 节点，导致 SceneTree 节点激增与 Render Draw Calls 承压 | 引入 **Roguelike 循环素材复用机制 (`motion_mirroring`)**：背景仅生成 1 个固定 1600px 长度的基础元块 (约 10 栋大楼)，开启 `layer.motion_mirroring = Vector2(1600, 0)`，由底层 C++ 引擎在视口移动时无缝无尽拼贴。 |
+| 视差层滚动比与节点生成数量脱节 | 生成了 5000px 长度的大楼，但相机移动 5000px 时背景只移动了 400px | 视差层 `motion_scale.x` 为 0.08 或 0.22，远景背景实际移动距离远小于视口位移，超过 80% 的大楼节点永远处于视口外浪费显存 | 统一将背景生成范围限制在 `1600px` 内，通过 `motion_mirroring` 零开销无限循环，Process 耗时大幅下降 56%+！ |
 

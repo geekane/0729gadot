@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "activeGoalId": "93bdbc62-fffd-4140-8604-4f113267c71b",
+  "activeGoalId": "1d3b760e-b4c7-4f07-9a33-5ff853987f41",
   "goals": [
     {
-      "id": "93bdbc62-fffd-4140-8604-4f113267c71b",
-      "title": "将完整方案汇总形成一个md",
-      "status": "complete",
+      "id": "1d3b760e-b4c7-4f07-9a33-5ff853987f41",
+      "title": "Continue",
+      "status": "in_progress",
       "successCriteria": []
     }
   ]

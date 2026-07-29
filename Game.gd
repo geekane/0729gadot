@@ -7,6 +7,8 @@ const FlyEnemy = preload("res://FlyEnemy.gd")
 const Hazard = preload("res://Hazard.gd")
 const MovingPlatform = preload("res://MovingPlatform.gd")
 const Boss = preload("res://Boss.gd")
+const PixelConfig = preload("res://pixel_config.gd")
+const PixelBackground = preload("res://pixel_background.gd")
 
 enum GameState { MENU, PLAYING, WON, GAME_OVER }
 
@@ -221,6 +223,8 @@ const LEVEL_CONFIGS = {
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# 像素风渲染设置（NEAREST 滤波）
+	PixelConfig.apply(get_viewport())
 	RenderingServer.set_default_clear_color(Color(0.08, 0.1, 0.2, 1.0))
 	_load_high_score()
 	_create_menu()
@@ -280,12 +284,6 @@ func _update_bg_effects(delta):
 		bat_signal.set_meta("flicker", 0.85 + sin(anim_time * 5.0) * 0.15)
 		bat_signal.queue_redraw()
 		
-	# 2. 摩天楼窗光微弱闪烁
-	var win_nodes = get_tree().get_nodes_in_group("flicker_windows")
-	for i in range(win_nodes.size()):
-		var w = win_nodes[i]
-		if is_instance_valid(w):
-			w.modulate.a = 0.25 + sin(anim_time * 2.5 + i * 0.7) * 0.2
 			
 	# 3. 漂移云层平移
 	var cloud_nodes = get_tree().get_nodes_in_group("drifting_clouds")
@@ -777,7 +775,8 @@ func _start_level(level_idx: int):
 	state = GameState.PLAYING
 	current_level = level_idx
 	is_paused = false
-	get_tree().paused = false
+	if get_tree():
+		get_tree().paused = false
 	blink_timer = 0.0
 	
 	_overlay = null
@@ -845,11 +844,11 @@ func _create_world():
 	sky_bg.position = Vector2(-600, -400)
 	layer0.add_child(sky_bg)
 	
-	var moon = ColorRect.new()
-	moon.color = Color(1.0, 0.95, 0.72, 0.92)
-	moon.size = Vector2(75, 75)
-	moon.position = Vector2(850, 20)
-	layer0.add_child(moon)
+	var moon_spr = Sprite2D.new()
+	moon_spr.texture = PixelBackground.create_pixel_moon(80)
+	moon_spr.position = Vector2(890, 60)
+	moon_spr.scale = Vector2(1, 1)
+	layer0.add_child(moon_spr)
 	
 	# 动态摇摆探照灯与云层蝙蝠徽标 Projection
 	var bat_signal = Node2D.new()
@@ -891,89 +890,75 @@ func _create_world():
 	layer0.add_child(bat_signal)
 	pb.add_child(layer0)
 	
-	# Layer 1: 远景起伏摩天大楼与呼吸闪烁窗光 (视差比 0.08, 0.02)
+	# Layer 1: 远景像素摩天大楼 (视差比 0.08, 0.02, Roguelike 循环复用 1600px)
 	var layer1 = ParallaxLayer.new()
 	layer1.motion_scale = Vector2(0.08, 0.02)
-	var b_x1 = -200.0
-	var b_idx1 = 0
-	while b_x1 < cur_width + 800:
-		var bw = randf_range(90.0, 150.0)
-		var bh = randf_range(200.0, 380.0)
-		var b = ColorRect.new()
-		b.color = Color(0.10, 0.13, 0.22, 0.88)
-		b.size = Vector2(bw, bh)
-		b.position = Vector2(b_x1, GROUND_Y - bh + 20)
-		layer1.add_child(b)
-		
-		# 楼顶避雷针天线
-		if b_idx1 % 2 == 0:
-			var ant = ColorRect.new()
-			ant.color = Color(0.6, 0.65, 0.75, 0.7)
-			ant.size = Vector2(2, 35)
-			ant.position = Vector2(b_x1 + bw/2.0 - 1, GROUND_Y - bh - 15)
-			layer1.add_child(ant)
-			
-		# 呼吸闪烁窗户
-		for wy in range(40, int(bh) - 40, 30):
-			for wx in range(12, int(bw) - 20, 24):
-				if randf() > 0.35:
-					var win = ColorRect.new()
-					win.color = Color(1.0, 0.88, 0.35, 0.35)
-					win.size = Vector2(8, 12)
-					win.position = Vector2(b_x1 + wx, GROUND_Y - bh + wy)
-					win.add_to_group("flicker_windows")
-					layer1.add_child(win)
-		b_x1 += bw + randf_range(8, 24)
-		b_idx1 += 1
+	layer1.motion_mirroring = Vector2(1600, 0) # 开启 1600px 无缝无尽拼贴
+	var b_x1 = -100.0
+	var b_id1 = 0
+	while b_x1 < 1500: # 固定只生成 1600px 长度的基础块 (约 11 栋)
+		var bw = 120.0
+		var bh = 240.0 + (b_id1 % 3) * 60.0
+		var building_tex = PixelBackground.create_building_texture(
+			int(bw), int(bh),
+			Color(0.10, 0.13, 0.22, 0.88),
+			Color(1.0, 0.88, 0.35, 0.35),
+			b_id1 * 31 + 7
+		)
+		var b_spr = Sprite2D.new()
+		b_spr.texture = building_tex
+		b_spr.position = Vector2(b_x1, GROUND_Y - bh / 2.0 + 20)
+		layer1.add_child(b_spr)
+		b_x1 += bw + 16.0
+		b_id1 += 1
 	pb.add_child(layer1)
 	
-	# Layer 2: 中景哥谭大楼天际线与漂移云层 (视差比 0.22, 0.05)
+	# Layer 2: 中景像素哥谭大楼与漂移云层 (视差比 0.22, 0.05, Roguelike 循环复用 1600px)
 	var layer2 = ParallaxLayer.new()
 	layer2.motion_scale = Vector2(0.22, 0.05)
-	var b_x2 = -150.0
-	while b_x2 < cur_width + 600:
-		var bw = randf_range(110.0, 160.0)
-		var bh = randf_range(160.0, 280.0)
-		var b = ColorRect.new()
-		b.color = Color(0.14, 0.18, 0.30, 0.95)
-		b.size = Vector2(bw, bh)
-		b.position = Vector2(b_x2, GROUND_Y - bh + 25)
-		layer2.add_child(b)
-		
-		for wy in range(30, int(bh) - 30, 28):
-			for wx in range(15, int(bw) - 20, 25):
-				if randf() > 0.4:
-					var win = ColorRect.new()
-					win.color = Color(0.4, 0.9, 1.0, 0.35)
-					win.size = Vector2(10, 14)
-					win.position = Vector2(b_x2 + wx, GROUND_Y - bh + wy)
-					win.add_to_group("flicker_windows")
-					layer2.add_child(win)
-		b_x2 += bw + randf_range(10, 30)
-		
+	layer2.motion_mirroring = Vector2(1600, 0) # 开启 1600px 无缝无尽拼贴
+	var b_x2 = -80.0
+	var b_id2 = 0
+	while b_x2 < 1520: # 固定只生成 1600px 长度的基础块 (约 10 栋)
+		var bw = 140.0
+		var bh = 200.0 + (b_id2 % 3) * 40.0
+		var building_tex = PixelBackground.create_building_texture(
+			int(bw), int(bh),
+			Color(0.14, 0.18, 0.30, 0.95),
+			Color(0.4, 0.9, 1.0, 0.35),
+			b_id2 * 17 + 107
+		)
+		var b_spr = Sprite2D.new()
+		b_spr.texture = building_tex
+		b_spr.position = Vector2(b_x2, GROUND_Y - bh / 2.0 + 25)
+		layer2.add_child(b_spr)
+		b_x2 += bw + 20.0
+		b_id2 += 1
+	
+	# 像素浮云 (循环模式)
 	var clouds_data = [
-		[100, 20, 180, 50], [450, -30, 220, 60], [850, 10, 200, 55],
-		[1200, -40, 260, 70], [1600, 30, 190, 50], [2100, -20, 240, 60],
-		[2600, 10, 210, 55], [3200, -30, 250, 65], [3800, 20, 200, 50]
+		[100, 30, 180, 50], [450, -20, 220, 60], [850, 20, 200, 55],
+		[1200, -30, 260, 70], [1500, 40, 190, 50]
 	]
 	for cd in clouds_data:
-		var cloud = ColorRect.new()
-		cloud.color = Color(0.22, 0.28, 0.42, 0.45)
-		cloud.size = Vector2(cd[2], cd[3])
-		cloud.position = Vector2(cd[0], cd[1])
-		cloud.add_to_group("drifting_clouds")
-		layer2.add_child(cloud)
+		var cloud_tex = PixelBackground.create_cloud_texture(cd[2], cd[3])
+		var cloud_spr = Sprite2D.new()
+		cloud_spr.texture = cloud_tex
+		cloud_spr.position = Vector2(cd[0] + cd[2]/2.0, cd[1] + cd[3]/2.0)
+		cloud_spr.add_to_group("drifting_clouds")
+		layer2.add_child(cloud_spr)
 	pb.add_child(layer2)
 	
-	# Layer 3: 近景管道与护栏 (视差比 0.55, 0.10)
+	# Layer 3: 近景像素管道与护栏 (视差比 0.55, 0.10, Roguelike 循环复用 1600px)
 	var layer3 = ParallaxLayer.new()
 	layer3.motion_scale = Vector2(0.55, 0.10)
-	for bx in range(-100, cur_width + 400, 320):
-		var pipe = ColorRect.new()
-		pipe.color = Color(0.18, 0.22, 0.30, 0.9)
-		pipe.size = Vector2(12, 140)
-		pipe.position = Vector2(bx, GROUND_Y - 140)
-		layer3.add_child(pipe)
+	layer3.motion_mirroring = Vector2(1600, 0)
+	var pipe_tex = PixelBackground.create_pipe_texture()
+	for bx in range(-100, 1500, 320):
+		var pipe_spr = Sprite2D.new()
+		pipe_spr.texture = pipe_tex
+		pipe_spr.position = Vector2(bx + 6, GROUND_Y - 70)
+		layer3.add_child(pipe_spr)
 	pb.add_child(layer3)
 	
 	add_child(pb)
@@ -993,11 +978,10 @@ func _create_world():
 	# 7. 地面物理
 	_add_static_rect(cur_width / 2.0, GROUND_Y + 25, cur_width, 50, Color(0.28, 0.22, 0.16))
 	
-	var grass = ColorRect.new()
-	grass.color = Color(0.25, 0.65, 0.2)
-	grass.size = Vector2(cur_width, 6)
-	grass.position = Vector2(0, GROUND_Y - 2)
-	add_child(grass)
+	var grass_spr = Sprite2D.new()
+	grass_spr.texture = PixelBackground.create_grass_texture(int(cur_width), 8)
+	grass_spr.position = Vector2(cur_width / 2.0, GROUND_Y - 2 + 4)
+	add_child(grass_spr)
 	
 	# 8. 静态平台
 	for pd in level_cfg["platforms"]:

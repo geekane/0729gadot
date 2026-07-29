@@ -1,0 +1,179 @@
+# 像素风背景元素生成器
+#
+# 用 Image.create() 生成所有场景背景的像素纹理
+# 替换原 _create_world() 中的 ColorRect 背景
+
+const PixelLib = preload("res://pixel_lib.gd")
+
+const TILE_SIZE = 8  # 像素块大小（每个"像素"=8×8实际像素）
+
+# ─── 像素月亮 ──────────────────────────────────────
+
+static func create_pixel_moon(size: int = 80) -> Texture2D:
+	"""生成 8-bit 风格月亮纹理"""
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	
+	var cx = size / 2.0
+	var cy = size / 2.0
+	var r = size / 2.0 - 2
+	
+	# 用块状像素风格画月亮
+	for y in range(0, size, 4):
+		for x in range(0, size, 4):
+			var dx = (x + 2) - cx
+			var dy = (y + 2) - cy
+			if dx * dx + dy * dy <= r * r:
+				var brightness = 0.92 + (randf() * 0.08)
+				img.set_pixel(x, y, Color(1.0, brightness * 0.95, brightness * 0.7, 0.92))
+				if x + 1 < size: img.set_pixel(x+1, y, Color(1.0, brightness * 0.92, brightness * 0.68, 0.9))
+				if y + 1 < size: img.set_pixel(x, y+1, Color(1.0, brightness * 0.9, brightness * 0.65, 0.88))
+				if x + 1 < size and y + 1 < size:
+					img.set_pixel(x+1, y+1, Color(1.0, brightness * 0.88, brightness * 0.62, 0.85))
+	
+	# 画几个像素陨石坑（暗斑）
+	for _i in range(3):
+		var cr = 2 + randi() % 4
+		var acx = randi() % (size - 10) + 5
+		var acy = randi() % (size - 10) + 5
+		for py in range(acy - cr, acy + cr + 1):
+			for px in range(acx - cr, acx + cr + 1):
+				var dx = px - acx
+				var dy = py - acy
+				if dx * dx + dy * dy <= cr * cr and px >= 0 and px < size and py >= 0 and py < size:
+					var pc = img.get_pixel(px, py)
+					if pc.a > 0:
+						img.set_pixel(px, py, Color(pc.r * 0.75, pc.g * 0.7, pc.b * 0.6, pc.a))
+	
+	return ImageTexture.create_from_image(img)
+
+
+# ─── 像素大楼（生成完整大楼纹理）───────────────────
+
+static func _draw_pixel_block(img: Image, bx: int, by: int, bw: int, bh: int, color: Color) -> void:
+	"""画一个像素块"""
+	PixelLib.fill_rect(img, bx, by, bw, bh, color)
+
+
+static func create_building_texture(width: int, height: int,
+		base_color: Color, window_color: Color, seed_val: int) -> Texture2D:
+	"""生成一栋像素大楼纹理
+	
+	使用 TILE_SIZE 作为像素块单位，产生明显的像素风格
+	"""
+	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	var rng = RandomNumberGenerator.new()
+	rng.set_seed(seed_val)
+	
+	# 墙体 — 用水平条纹制造像素感
+	for strip_y in range(0, height, TILE_SIZE * 2):
+		var strip_h = min(TILE_SIZE, height - strip_y)
+		var lighter = Color(
+			min(base_color.r + 0.03, 1.0),
+			min(base_color.g + 0.03, 1.0),
+			min(base_color.b + 0.03, 1.0),
+			base_color.a
+		)
+		PixelLib.fill_rect(img, 0, strip_y, width, strip_h, lighter)
+		if strip_y + TILE_SIZE < height:
+			PixelLib.fill_rect(img, 0, strip_y + TILE_SIZE,
+				min(TILE_SIZE * 2, height - strip_y - TILE_SIZE),
+				width, base_color)
+	
+	# 屋顶装饰线（像素化天线或水塔）
+	if rng.randi() % 3 == 0:
+		var ant_x = width / 2 - 1
+		PixelLib.fill_rect(img, ant_x, 0, 2, 8, Color(0.5, 0.55, 0.65, 0.8))
+		PixelLib.fill_rect(img, ant_x - 3, 0, 7, 2, Color(0.5, 0.55, 0.65, 0.8))
+	
+	# 窗户 — 像素网格排列，随机亮灯
+	for wy in range(TILE_SIZE * 3, height - TILE_SIZE, TILE_SIZE * 3):
+		for wx in range(TILE_SIZE, width - TILE_SIZE, TILE_SIZE * 3):
+			if rng.randi() % 5 != 0:  # 80% 亮灯
+				PixelLib.fill_rect(img, wx, wy, 4, 4, window_color)
+				# 窗户边框（暗色）
+				img.set_pixel(wx - 1, wy - 1, Color(0.05, 0.05, 0.1, 0.5))
+				img.set_pixel(wx + 4, wy - 1, Color(0.05, 0.05, 0.1, 0.5))
+				img.set_pixel(wx - 1, wy + 4, Color(0.05, 0.05, 0.1, 0.5))
+				img.set_pixel(wx + 4, wy + 4, Color(0.05, 0.05, 0.1, 0.5))
+	
+	return ImageTexture.create_from_image(img)
+
+
+# ─── 像素浮云 ──────────────────────────────────────
+
+static func create_cloud_texture(width: int, height: int) -> Texture2D:
+	"""生成半透明像素云朵纹理"""
+	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	
+	var cx = width / 2.0
+	var cy = height / 2.0
+	
+	# 用多个圆叠成云朵形状
+	var blobs = [
+		[cx - width * 0.25, cy + 2, width * 0.25],
+		[cx + width * 0.25, cy + 2, width * 0.2],
+		[cx, cy - 4, width * 0.22],
+		[cx - width * 0.12, cy + 5, width * 0.18],
+		[cx + width * 0.12, cy + 5, width * 0.16],
+	]
+	
+	for blob in blobs:
+		var bcx = blob[0]
+		var bcy = blob[1]
+		var br = blob[2]
+		for y in range(max(0, int(bcy - br)), min(height, int(bcy + br + 1))):
+			for x in range(max(0, int(bcx - br)), min(width, int(bcx + br + 1))):
+				var dx = x - bcx
+				var dy = y - bcy
+				if dx * dx + dy * dy <= br * br:
+					var existing = img.get_pixel(x, y)
+					if existing.a < 0.45:
+						img.set_pixel(x, y, Color(0.35, 0.42, 0.55, 0.42))
+	
+	return ImageTexture.create_from_image(img)
+
+
+# ─── 像素草地 ──────────────────────────────────────
+
+static func create_grass_texture(width: int, height: int = 8) -> Texture2D:
+	"""生成像素草地纹理
+	
+	用不同深浅的绿色像素块模拟草地
+	"""
+	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	var rng = RandomNumberGenerator.new()
+	
+	for y in range(height):
+		var shade = 0.3 - (y / float(height)) * 0.15  # 从深到浅渐变
+		for x in range(0, width, 2):
+			var variation = rng.randf() * 0.1
+			var g = 0.55 + variation + (1.0 - y / float(height)) * 0.15
+			PixelLib.fill_rect(img, x, y, 2, 1,
+				Color(0.2 + shade, g, 0.15 + shade * 0.5, 1.0))
+	
+	return ImageTexture.create_from_image(img)
+
+
+# ─── 像素管道护栏 ──────────────────────────────────
+
+static func create_pipe_texture() -> Texture2D:
+	"""生成像素管道纹理"""
+	var img = Image.create(12, 140, false, Image.FORMAT_RGBA8)
+	var rng = RandomNumberGenerator.new()
+	
+	for y in range(140):
+		var shade = 0.18 + sin(y * 0.3) * 0.04
+		for x in range(12):
+			if x == 0 or x == 11:
+				img.set_pixel(x, y, Color(shade + 0.05, shade + 0.06, shade + 0.1, 0.9))
+			elif x == 1 or x == 10:
+				img.set_pixel(x, y, Color(shade + 0.03, shade + 0.04, shade + 0.08, 0.9))
+			else:
+				img.set_pixel(x, y, Color(shade, shade + 0.02, shade + 0.05, 0.9))
+		if y % 18 == 0 and y > 0:
+			for x in range(12):
+				img.set_pixel(x, y, Color(0.15, 0.12, 0.08, 0.95))  # 管道接口环
+	
+	return ImageTexture.create_from_image(img)
