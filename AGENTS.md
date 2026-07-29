@@ -460,7 +460,7 @@ is_dead → input_disabled → just_spawned → is_on_floor()
 
 ---
 
-## 9. 哥谭大冒险主题改造（2026-07-29）
+## 9. 哥谭大冒险主题改造与持续优化
 
 ### 9.1 主题升级概述
 
@@ -599,6 +599,80 @@ func _on_process_frame():
 
 **注意**: TestRunner 继承 `SceneTree` 而非 `Node2D`，这是一个独立的 headless runner，不能混入主场景。
 
+### 9.9 蝙蝠侠角色动态动画系统（2026-07-29 第二次迭代）
+
+用户将蝙蝠侠从静态角色升级为**全动态动画角色**：
+
+```gdscript
+# Player.gd — 动作相位计算
+var leg_swing = sin(anim_time * 16.0) * 5.0 if (is_moving and not is_airborne) else 0.0
+var breath_y = sin(anim_time * 3.5) * 1.0 if (not is_moving and not is_airborne) else 0.0
+var cape_wave = sin(anim_time * 12.0) * 4.0 if is_moving else sin(anim_time * 2.5) * 1.5
+```
+
+**三层动作状态**:
+| 状态 | 腿摆动 | 呼吸起伏 | 斗篷 |
+|------|--------|---------|------|
+| **待机** | 无 | `sin*1.0` 微微起伏 | `sin*1.5` 顺垂微动 |
+| **奔跑** | `sin*5.0` 快速摆动 | 无 | `sin*4.0` 向后剧烈摆动 |
+| **空中** | 固定张开 | 无 | 蝙蝠滑翔翼式张开（最宽）|
+
+**踩坑**: `anim_time` 在 `_physics_process` 中累加，确保动画速度与物理帧同步。如果用 `_process`（渲染帧）会导致物理和动画不同步。
+
+**人物放大**: `scale = Vector2(1.25, 1.25)` 使角色更突出。碰撞体不变（24x36），缩放不影响碰撞。
+
+**坐标调整**: 全部绘制坐标加 `torso_y`/`leg_y`/`head_y` 偏移，鞋底精确压在 `Y = +18` 碰撞底线上，解决嵌入地面问题。
+
+### 9.10 30FPS 动画帧率优化
+
+```gdscript
+# Player.gd — 关键优化：按需刷新 + 隔帧刷新
+if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get_physics_frames() % 2 == 0):
+    queue_redraw()
+```
+
+**原理**: 物理帧 60FPS，动画每 2 帧重绘一次 → 实际动画 30FPS。减少 50% 的 `_draw()` 调用量。
+**效果**: 动画肉眼仍然流畅（30FPS 对 2D 矢量动画已足够），大幅降低 Process CPU 开销。
+
+### 9.11 Game.gd 视觉调优
+
+| 改动 | 作用 |
+|------|------|
+| 天空底色 `0.04,0.06,0.12` → `0.12,0.16,0.28` | 调亮背景，让深色蝙蝠侠轮廓更突出 |
+| 月亮暖色化 80x80 → 65x65 | 更精致柔和 |
+| 新增 5 朵柔和浮云 | 增加天空层次感 |
+| 摩天大楼透明度增加 + 窗口固定化 | 降低节点膨胀，避免随机种子不一致 |
+| 蝙蝠探照灯透明度 0.12 → 0.08 | 更低调柔和 |
+
+### 9.12 TestRunner 自动化性能测试框架
+
+```gdscript
+# TestRunner.gd — 从简单截图工具升级为完整性能测试框架
+# 500帧全自动化游玩测试，模拟：
+#   - 每 45 帧切换左右移动方向
+#   - 每 50 帧触发跳跃（测试平台碰撞）
+#   - 自动收集金币、踩怪
+```
+
+**性能采样区间**: 80-500 帧（避开加载阶段）
+
+**输出报告**:
+```
+📊 自动化游玩试玩测试与性能监控分析报告
+==========================================
+平均帧率 (Avg FPS)
+最低帧率 (Min FPS)
+卡顿掉帧次数 (Spikes < 50FPS)
+平均 Physics 耗时
+活跃 SceneTree 节点数
+孤立节点泄漏数 (Orphans)
+每帧 Draw Calls 次数
+```
+
+**重点检测**: 如果 `proc_time > 20ms` 且 `FPS < 50` → 记录 Spikes 卡顿。
+
+**JSON 快照**: 测试完成后保存 `res://screenshots/` 下截图 + `.monitor_snapshot.json` 性能数据。
+
 ---
 
 ## 10. 已知局限 & 可优化方向
@@ -682,3 +756,16 @@ func _on_process_frame():
 | `Input.flush_buffered_events()` | 窗口失焦、暂停恢复、状态切换时调用，防止残留输入 |
 | `_physics_process` 驱动物理相关位置 | 非渲染帧驱动的 `position` 变化才能被 PhysicsServer 感知 |
 | 状态机用 `enum + match` | 比字符串比较更类型安全，性能更好 |
+
+### 10.9 TestRunner.gd 与自动化游玩压测踩坑汇总
+
+| 问题 / 踩坑点 | 现象 | 原因 | 最佳解决方案 |
+|------|------|------|---------|
+| CLI 快照截图全黑/返回 null | `root.get_texture().get_image()` 截取为黑屏 | 命令行加了 `--headless` 参数使用 dummy 渲染器，不输出视口纹理 | 移除 `--headless`，改用 `--rendering-driver opengl3` 命令行驱动跑测试 |
+| `get_process_step()` 语法解析报错 | `Static function "get_process_step()" not found` | 误写成 `Engine.get_process_step()` | `get_process_step()` 是 `SceneTree` 的成员方法，直接调用 `get_process_step()` |
+| VSYNC 垂直同步干扰掉帧采样 | 帧率 60FPS 但 `TIME_PROCESS` 报 28ms-34ms Spike | `Performance.TIME_PROCESS` 包含了 GPU 垂直同步等待时间 | 结合 `Engine.get_frames_per_second() < 50` 以及 `Performance.TIME_PHYSICS_PROCESS` 综合判定卡顿 |
+| 游玩模拟被守卫拦截 | 按空格没响应，无法开始游戏 | Player 刚生成时有 `just_spawned` 标志或处于 `input_disabled` 状态 | 试玩脚手架在 Frame 5 显式调用 `game_instance._start_game()`，并重置模拟坐标 |
+| `_draw()` 堆内存大量分配推高 Process 耗时 | Process 耗时升至 22ms+ 导致卡顿 | 每帧 `_draw()` 中实例化多个 `PackedVector2Array` 数组 | 使用 `static func _static_init()` 静态预分配单位圆数组；按 `Engine.get_physics_frames() % 2 == 0` 间隔刷新 |
+| 背景 ColorRect 节点膨胀推高 SceneTree 开销 | 节点数从 65 暴涨至 150+ | 在 `_create_world()` 中用循环大量生成小 Window `ColorRect` 节点 | 限制窗口灯光节点数量，或采用单个 Node2D `_draw()` 统一绘制背景 |
+| EXE 打包提示 `game.tmp` 无法重命名失败 | `--export-release` 导出提示失败 | `build/game.exe` 已经在后台运行中，文件被 Windows 系统锁住 | 在打包前执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留进程 |
+

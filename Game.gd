@@ -281,7 +281,7 @@ func _create_world():
 	])
 	add_child(bat_signal)
 
-	# 5. 哥谭摩天大楼天际线 (适度调浅明度，保持良好衬托效果)
+	# 5. 哥谭摩天大楼天际线 (低节点开销，精简视觉效果)
 	var buildings_data = [
 		[-100, 140, 200], [70, 120, 240], [210, 150, 180], [380, 140, 260],
 		[540, 130, 210], [700, 160, 190], [890, 140, 250], [1050, 150, 220],
@@ -297,15 +297,18 @@ func _create_world():
 		building.position = Vector2(bx, GROUND_Y - bh + 25)
 		add_child(building)
 		
-		# 稀疏柔和窗口灯光
-		for wx in range(18, bw - 22, 30):
-			for wy in range(25, bh - 30, 40):
-				if randf() > 0.6:
-					var win = ColorRect.new()
-					win.color = Color(1.0, 0.88, 0.35, 0.35)
-					win.size = Vector2(8, 11)
-					win.position = Vector2(bx + wx, GROUND_Y - bh + 25 + wy)
-					add_child(win)
+		# 少数几扇柔和窗口，避免节点过度膨胀
+		var win1 = ColorRect.new()
+		win1.color = Color(1.0, 0.88, 0.35, 0.35)
+		win1.size = Vector2(10, 14)
+		win1.position = Vector2(bx + 20, GROUND_Y - bh + 50)
+		add_child(win1)
+		
+		var win2 = ColorRect.new()
+		win2.color = Color(0.4, 0.85, 1.0, 0.3)
+		win2.size = Vector2(10, 14)
+		win2.position = Vector2(bx + bw - 30, GROUND_Y - bh + 90)
+		add_child(win2)
 
 	var cam = Camera2D.new()
 	cam.name = "Camera2D"

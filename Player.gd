@@ -234,8 +234,8 @@ func _physics_process(delta):
 	# 边界限制
 	position.x = clamp(position.x, 12.0, LEVEL_WIDTH - 12.0)
 	
-	# 驱动跑步/跳跃/呼吸动画的实时重绘
-	if needs_redraw or abs(velocity.x) > 10.0 or not is_on_floor():
+	# 控制动画刷新频率：按需刷新或每 2 物理帧刷新一次 (30FPS 动画帧率，大降 Process CPU 开销)
+	if needs_redraw or ((abs(velocity.x) > 10.0 or not is_on_floor()) and Engine.get_physics_frames() % 2 == 0):
 		queue_redraw()
 
 func hit() -> bool:

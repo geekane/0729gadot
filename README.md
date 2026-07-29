@@ -90,11 +90,11 @@ D:\godot-test-project\                       # 项目根目录
 
 | 文件 | 职责 | 关键类 |
 |------|------|--------|
-| `Game.gd` | 关卡构建(哥谭夜景+摩天大楼)、Camera、HUD、状态机、碰撞响应、粒子爆裂、暂停增强 | `Node2D` |
-| `Player.gd` | 蝙蝠侠角色绘制(9层)、Coyote Time、Jump Buffer、Variable Jump Height、输入、物理 | `CharacterBody2D` |
+| `Game.gd` | 哥谭夜景(云层/月亮/蝙蝠探照灯)、Camera、HUD、状态机、碰撞响应、粒子爆裂、暂停增强 | `Node2D` |
+| `Player.gd` | 蝙蝠侠动态动画(3态披风/腿摆动/呼吸)、Coyote Time、Jump Buffer、30FPS动画优化 | `CharacterBody2D` |
 | `Coin.gd` | 金币碰撞检测、浮动动画、旋转绘制 | `Area2D` |
 | `Enemy.gd` | 蘑菇怪巡逻 AI、踩头判定、压扁消失 | `Area2D` |
-| `TestRunner.gd` | headless 自动截图工具（运行时独立进程） | `SceneTree` |
+| `TestRunner.gd` | 500帧自动化性能测试+截图报告框架 | `SceneTree` |
 | `Game.tscn` | 资源场景入口，引用 Game.gd | — |
 | `AGENTS.md` | AI 上下文知识文档 | — |
 | `export_presets.cfg` | Windows 导出参数 | — |
@@ -105,7 +105,7 @@ D:\godot-test-project\                       # 项目根目录
 
 ### 3.1 项目全景图
 
-本游戏由 **5 个 GDScript 文件** 构成，所有节点在运行时用代码动态创建，没有预制的 .tscn 场景（Game.tscn 仅为入口空壳）。
+本游戏由 **5 个 GDScript 文件**（共约 1510 行代码）构成，所有节点在运行时用代码动态创建，没有预制的 .tscn 场景（Game.tscn 仅为入口空壳）。
 **主题**: 🦇 哥谭大冒险：蝙蝠侠出击（蝙蝠侠哥谭市平台跳跃）
 
 ```
@@ -135,7 +135,7 @@ D:\godot-test-project\                       # 项目根目录
 
 ### 3.2 每个文件内部函数结构
 
-#### Game.gd — 游戏中枢 (716 行, 哥谭主题)
+#### Game.gd — 游戏中枢 (735 行, 哥谭夜景调优)
 
 | 函数区域 | 函数 | 职责 |
 |---------|------|------|
@@ -148,7 +148,7 @@ D:\godot-test-project\                       # 项目根目录
 | **菜单** | `_create_menu()` | 创建星光背景 + 圆角卡片 + 最高分 + 操作说明 + 开始提示 |
 | **状态切换** | `_start_game()` | MENU→PLAYING：清理菜单、构建世界、创建玩家、初始化镜头 |
 | | `_go_back_menu()` | WON/GAME_OVER→MENU：完全重建 |
-| **世界** | `_create_world()` | 创建 Camera2D、地面、草地、8个平台、10个金币、3个敌人、终点 |
+| **世界** | `_create_world()` | 哥谭夜空(调亮背景色)+明月+浮云×5+蝙蝠探照灯+摩天大楼×11(每栋2扇固定窗户)+Camera2D+地面+草地+8平台+10金币+3敌人+终点 |
 | | `_add_static_rect()` | 通用 StaticBody2D 创建（参数化图层） |
 | | `_create_finish()` | 终点旗帜 + 碰撞体 + 信号绑定 |
 | | `_create_player()` | 实例化 Player 放到起点 |
@@ -170,13 +170,14 @@ D:\godot-test-project\                       # 项目根目录
 
 | 函数区域 | 函数 | 职责 |
 |---------|------|------|
-| **配置** | `_ready()` | 设置碰撞层(mask=3)、单向平台(layers=2)、碰撞体形状 |
-| **绘制(9层)** | `_draw()` | 蝙蝠侠：披风→战靴→战衣→蝙蝠胸章→腰带→护臂刺刺→头盔+尖角耳→下巴→发光白眼(无敌变红) |
-| **输入** | `_unhandled_input()` | Jump Buffer(0.12s预输入)、Variable Jump Height(短按/长按)、守卫链 |
+| **配置** | `_ready()` | 放大1.25倍、碰撞层(mask=3)、单向平台(layers=2)、碰撞体形状 |
+| **绘制(动态)** | `_draw()` | 蝙蝠侠9层+3态动画：待机(呼吸1px+微摆)/奔跑(腿摆动5px+斗篷后飘)/空中(披风张开+固定腿) |
+| **输入** | `_unhandled_input()` | Jump Buffer(0.12s预输入)、Variable Jump Height(短按×0.45/长按)、守卫链 |
 | | `_notification()` | 窗口失焦时 `Input.flush_buffered_events()` |
-| **物理** | `_physics_process(delta)` | Coyote Time(0.12s土狼时间)、Jump Buffer执行、无敌闪烁、重力、水平移动、`move_and_slide()`、边界clamp、按需重绘 |
+| **物理** | `_physics_process(delta)` | `anim_time`累加、Coyote Time(0.12s)、Jump Buffer执行、无敌闪烁、重力、水平移动、`move_and_slide()`、边界clamp |
+| **动画优化** | 重绘策略 | 30FPS隔帧刷新(`Engine.get_physics_frames() % 2 == 0`)，减少50% `_draw()` 调用 |
 | **状态** | `hit()` | 受伤：无敌1.5s + 击退，返回是否实际受伤 |
-| | `die()` | 禁用碰撞 + 弹起飞出 + 变红tween + 隐藏 |
+| | `die()` | 禁用碰撞 + 弹起飞出 + 变红tween 0.4s + 隐藏 |
 
 #### Enemy.gd — 敌人 (115 行)
 
