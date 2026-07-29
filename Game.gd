@@ -9,6 +9,7 @@ const MovingPlatform = preload("res://MovingPlatform.gd")
 const Boss = preload("res://Boss.gd")
 const PixelConfig = preload("res://pixel_config.gd")
 const PixelBackground = preload("res://pixel_background.gd")
+const PixelLib = preload("res://pixel_lib.gd")
 
 enum GameState { MENU, PLAYING, WON, GAME_OVER }
 
@@ -382,6 +383,129 @@ static func _create_vector_icon(type: String, custom_size: Vector2 = Vector2(24,
 	)
 	return icon
 
+static func _create_pixel_icon(type: String, custom_size: Vector2 = Vector2(24, 24)) -> TextureRect:
+	"""用像素图替代矢量 Icon，返回 TextureRect"""
+	var tr = TextureRect.new()
+	tr.custom_minimum_size = custom_size
+	tr.size = custom_size
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 放大纹理以适应控件大小，同时保持 NEAREST 滤波
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+	# 调色板定义
+	var heart_pal = { "R": Color(0.95, 0.15, 0.25), ".": Color.TRANSPARENT }
+	var heart_empty_pal = { "L": Color(0.4, 0.45, 0.55), "D": Color(0.2, 0.22, 0.28), ".": Color.TRANSPARENT }
+	var gold_pal = { "Y": Color(1.0, 0.85, 0.1), ".": Color.TRANSPARENT }
+	var circle_pal = { "C": Color(1.0, 0.85, 0.1), ".": Color.TRANSPARENT }
+	var bat_pal = { "C": Color(1.0, 0.85, 0.1), "B": Color(0.1, 0.1, 0.15), ".": Color.TRANSPARENT }
+	var flag_pal = { "F": Color(0.15, 0.85, 0.35), "P": Color(0.8, 0.85, 0.9), ".": Color.TRANSPARENT }
+
+	var pixels: Array[String] = []
+	var palette: Dictionary = {}
+
+	match type:
+		"heart_full":
+			palette = heart_pal
+			pixels = [
+				"............",
+				"............",
+				"...RR..RR...",
+				"..RRRRRRRR..",
+				"..RRRRRRRR..",
+				"..RRRRRRRR..",
+				"...RRRRRR...",
+				"....RRRR....",
+				".....RR.....",
+				"......R.....",
+				"............",
+				"............"
+			]
+		"heart_empty":
+			palette = heart_empty_pal
+			pixels = [
+				"............",
+				"............",
+				"...LL..LL...",
+				"..LDDDLDDL..",
+				"..LDDDDDDL..",
+				"..LDDDDDDL..",
+				"...LDDDDL...",
+				"....LDDL....",
+				".....LL.....",
+				"......L.....",
+				"............",
+				"............"
+			]
+		"coin":
+			palette = circle_pal
+			pixels = [
+				"............",
+				"....CCC.....",
+				"...CCCCC....",
+				"..CCCCCCC...",
+				"..CCCCCCCC..",
+				".CCCCCCCCC..",
+				".CCCCCCCCC..",
+				"..CCCCCCCC..",
+				"..CCCCCCCC..",
+				"...CCCCC....",
+				"....CCC.....",
+				"............"
+			]
+		"crown":
+			palette = gold_pal
+			pixels = [
+				"............",
+				"..Y.....Y...",
+				".YYY...YYY..",
+				"YYYYYYYYYYYY",
+				"YYYYYYYYYYYY",
+				"YYYYYYYYYYYY",
+				".YYYYYYYYYY.",
+				"..YYYYYYYY..",
+				"...YYYYYY...",
+				"....YYYY....",
+				"....YYYY....",
+				"............"
+			]
+		"bat":
+			palette = bat_pal
+			pixels = [
+				"............",
+				"....CCC.....",
+				"...CCCCC....",
+				"..CCCCCCC...",
+				"..CCBBCCC...",
+				".CCBBBBBC...",
+				".CBBBBBBBC..",
+				"..CBBBBBBC..",
+				"..CCBBCCC...",
+				"...CCBCC....",
+				"....CCC.....",
+				"............"
+			]
+		"flag":
+			palette = flag_pal
+			pixels = [
+				"............",
+				"..P..F......",
+				"..P..FF.....",
+				"..P..FFF....",
+				"..P..F......",
+				"..P.........",
+				"..P.........",
+				"..P.........",
+				"..P.........",
+				"..P.........",
+				"............",
+				"............"
+			]
+
+	var tex = PixelLib.create_texture(12, 12, pixels, palette)
+	tr.texture = tex
+	return tr
+
 func _create_menu():
 	state = GameState.MENU
 	is_paused = false
@@ -477,7 +601,7 @@ func _create_menu():
 	
 	var icon_box = HBoxContainer.new()
 	icon_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	icon_box.add_child(_create_vector_icon("bat", Vector2(42, 42)))
+	icon_box.add_child(_create_pixel_icon("bat", Vector2(42, 42)))
 	title_vbox.add_child(icon_box)
 	
 	var title = Label.new()
@@ -656,7 +780,7 @@ func _show_high_score_dialog():
 	hs_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	hs_box.position = Vector2(40, 90)
 	hs_box.size = Vector2(380, 50)
-	hs_box.add_child(_create_vector_icon("crown", Vector2(36, 36)))
+	hs_box.add_child(_create_pixel_icon("crown", Vector2(36, 36)))
 	
 	var hs_val = Label.new()
 	hs_val.text = " 历史最高分:  %d" % high_score
@@ -931,9 +1055,15 @@ func _create_world():
 		var b_spr = Sprite2D.new()
 		b_spr.texture = building_tex
 		b_spr.position = Vector2(b_x2, GROUND_Y - bh / 2.0 + 25)
-		layer2.add_child(b_spr)
 		b_x2 += bw + 20.0
 		b_id2 += 1
+		
+	# 哥谭大钟楼 (Gotham Clock Tower) 嵌入 Layer 2 中景
+	var clock_tower_tex = PixelBackground.create_clock_tower_texture(140, 260)
+	var ct_spr = Sprite2D.new()
+	ct_spr.texture = clock_tower_tex
+	ct_spr.position = Vector2(720, GROUND_Y - 105)
+	layer2.add_child(ct_spr)
 	
 	# 像素浮云 (循环模式)
 	var clouds_data = [
@@ -1162,7 +1292,7 @@ func _create_hud():
 	# 1. 金币区域 (矢量 Icon + Label)
 	var coin_box = HBoxContainer.new()
 	coin_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	coin_box.add_child(_create_vector_icon("coin", Vector2(24, 24)))
+	coin_box.add_child(_create_pixel_icon("coin", Vector2(24, 24)))
 	score_label = Label.new()
 	score_label.name = "ScoreLabel"
 	score_label.text = str(score)
@@ -1228,7 +1358,7 @@ func _update_lives_hud():
 		
 	for i in range(3):
 		var heart_type = "heart_full" if i < lives else "heart_empty"
-		hearts_box.add_child(_create_vector_icon(heart_type, Vector2(24, 24)))
+		hearts_box.add_child(_create_pixel_icon(heart_type, Vector2(24, 24)))
 
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
@@ -1245,7 +1375,10 @@ func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(label, "position:y", label.position.y - 35.0, 0.6)
 	tween.tween_property(label, "modulate:a", 0.0, 0.6)
-	tween.chain().tween_callback(func(): label.hide(); label.queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(label):
+			label.hide(); label.queue_free()
+	)
 
 func _on_boss_defeated(boss_node):
 	"""小丑大 Boss 被击败后触发"""
@@ -1338,7 +1471,10 @@ func _spawn_particle_burst(world_pos: Vector2, color: Color):
 		var vel = item[1]
 		tween.tween_property(p, "position", vel * 0.35, 0.35)
 		tween.tween_property(p, "modulate:a", 0.0, 0.35)
-	tween.chain().tween_callback(func(): node.hide(); node.queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(node):
+			node.hide(); node.queue_free()
+	)
 
 # ─── 游戏事件 ──────────────────────────────────────
 

@@ -721,7 +721,7 @@ func _save_all_pending_captures():
 |-------|------|------|
 | 0 | `pixel_config.gd` + `pixel_lib.gd` 基础设施 | ✅ 完成 |
 | 1 | 背景像素化（月亮/大楼/云/管道/草地） | ✅ 完成 |
-| 2 | 道具+UI（Coin/Hazard/HUD 图标） | ❌ 待做 |
+| 2 | 道具+UI（Coin/Hazard/HUD 图标） | ✅ 完成 |
 | 3 | 角色像素化（Player） | ❌ 待做 |
 | 4 | 敌人像素化（Enemy/FlyEnemy/Boss） | ❌ 待做 |
 | 5 | 特效+菜单抛光 | ❌ 待做 |
@@ -775,6 +775,44 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 ### 11.6 背景替换留下的死代码
 
 `Game.gd._process()` 中 `flicker_windows` 组循环已清理（窗光现已嵌入大楼纹理）。
+
+### 11.7 Phase 2 — 道具+UI 像素化
+
+#### Coin.gd 改造
+
+| 改前 | 改后 |
+|------|------|
+| `_draw()` 4层椭圆叠加 | `Sprite2D` 子节点，`PixelLib.create_texture(8, 8, ...)` |
+| 预计算 `UNIT_CIRCLE` + `STEPS` | 8 帧像素旋转动画数组 |
+| 每帧 `queue_redraw()` | `sprite.texture = coin_textures[int(anim_time*2) % 8]` |
+| `scale` 无 | `sprite.scale = Vector2(4, 4)`（8→32px 匹配碰撞体 r=16）|
+
+**保留**: 碰撞(CircleShape2D r=16)、浮动(bobbing)、双重检测(body_entered + get_overlapping_bodies)、收集动画(tween + scale 1.5)。
+
+#### Hazard.gd 改造
+
+| 改前 | 改后 |
+|------|------|
+| `_draw()` 3个三角尖刺 | `Sprite2D` 子节点，20×10 像素纹理 |
+| `draw_polygon` ×3 + `draw_line` | `PixelLib.create_texture(20, 10, ...)` |
+| 无缩放 | `sprite.scale = Vector2(2, 2)`（20×10→40×20 对齐碰撞体 40×16）|
+| 每帧 queue_redraw | 一次性生成，无需重绘 |
+
+**保留**: 碰撞体(RectangleShape2D 40×16, 偏移 -8)、body_entered 伤害逻辑。
+
+#### HUD 图标改造
+
+新增 `_create_pixel_icon()` 静态函数（替代 `_create_vector_icon`），返回 `TextureRect`：
+
+- 6 种图标全部用 12×12 像素数据 + `PixelLib.create_texture()` 生成
+- `stretch_mode = STRETCH_KEEP_ASPECT_CENTERED` 自动缩放
+- `texture_filter = TEXTURE_FILTER_NEAREST` 保持像素风
+- 调用处全部替换：菜单蝙蝠(42x42)、最高分皇冠(36x36)、HUD金币(24x24)、生命心形(24x24)
+
+#### Phase 2 踩坑
+
+- ❌ `TextureRect.EXPAND_KEEP_ASPECT_CENTERED` 在 Godot 4.7 中不存在 → 改为 `stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED`
+- ❌ `tex.texture_filter` 不能设置在 Texture2D 资源上 → 改在 Sprite2D/TextureRect 节点上设置
 
 ---
 
@@ -901,10 +939,10 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 探照灯摇摆光束与云层徽标不同步 | 光束往左摇，但云层上的蝙蝠黑影在右边 | 探照灯光束与云层 Bat Silhouette 顶点独立计算了不同的 `sweep_angle` 偏移量 | 在 `BatSignalBeam` 的 `_draw()` 回调中统一使用相同的 `top_center = Vector2(base_x + sin(sweep_angle) * range, top_y)` 坐标基准，确保光束顶端与云层 Projection Emblem 100% 紧密重合。 |
 | `--export-release` 导出 `game.tmp` 无法重命名失败 | 执行导出命令提示 Error Code 1 失败 | 导出的目标可执行文件 `build/game.exe` 正在 Windows 系统后台中运行，句柄被系统进程占用锁住 | 导出前必须执行 `Stop-Process -Name "game" -Force -ErrorAction SilentlyContinue` 杀死残留游戏进程后再执行导出命令。 |
 
-### 10.15 长关卡卡顿诊断与 Roguelike 循环素材复用规范
+### 10.16 移动平台 AnimatableBody2D 物理同步与飞行怪远程子弹规范
 
 | 风险点 / 踩坑点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
-| 长关卡 (Level 4/5) 帧率大幅掉落与 Process 耗时暴涨 | Level 4/5 画面明显卡顿，Process 耗时高达 140ms ~ 170ms | `_create_world()` 根据 `cur_width` (4000px/5000px) 盲目线性生成了 100+ 栋大楼 Sprite 节点，导致 SceneTree 节点激增与 Render Draw Calls 承压 | 引入 **Roguelike 循环素材复用机制 (`motion_mirroring`)**：背景仅生成 1 个固定 1600px 长度的基础元块 (约 10 栋大楼)，开启 `layer.motion_mirroring = Vector2(1600, 0)`，由底层 C++ 引擎在视口移动时无缝无尽拼贴。 |
-| 视差层滚动比与节点生成数量脱节 | 生成了 5000px 长度的大楼，但相机移动 5000px 时背景只移动了 400px | 视差层 `motion_scale.x` 为 0.08 或 0.22，远景背景实际移动距离远小于视口位移，超过 80% 的大楼节点永远处于视口外浪费显存 | 统一将背景生成范围限制在 `1600px` 内，通过 `motion_mirroring` 零开销无限循环，Process 耗时大幅下降 56%+！ |
+| `StaticBody2D` 移动平台导致玩家穿模坠落或无法跟随 | 左右平移平台玩家无法跟随；上下升降平台踏上去瞬间穿透单向面坠落 | `StaticBody2D` 仅用于固定建筑，不计算平台运动速度 (`get_platform_velocity`)，无法与 `CharacterBody2D` 物理同步 | 移动平台必须继承 **`extends AnimatableBody2D`**，并在 `_ready()` 中显式开启 **`sync_to_physics = true`**！`CharacterBody2D` 会自动读取平移速度并平滑跟随。 |
+| 飞行怪子弹与 Coin 旋转索引越界 | 报错 `Out of bounds get index '3'` | GDScript 中负数浮点转 int 求模 (`-1 % 8`) 会返回负数索引 | 在获取数组纹理索引时，统一使用 **`posmod(int_val, array.size())`**，安全防范负数与越界风险！ |
 

@@ -1,27 +1,119 @@
 extends Area2D
 
+const PixelLib = preload("res://pixel_lib.gd")
+
+# ── 小丑无人机像素调色板 ──
+const PALETTE: Dictionary = {
+	"P": Color(0.5, 0.15, 0.55),
+	"D": Color(0.35, 0.12, 0.38),
+	"R": Color(1.0, 0.2, 0.25),
+	"J": Color(0.85, 0.15, 0.2),
+	"W": Color.WHITE,
+	"B": Color(0.1, 0.05, 0.15),
+	"G": Color(0.8, 0.8, 0.85),
+	"K": Color(0.3, 0.3, 0.35),
+	".": Color.TRANSPARENT,
+}
+
+# ── 4帧螺旋桨旋转动画（16×16） ──
+const DRONE_FRAMES: Array[Array] = [
+	# 帧0：螺旋桨水平
+	[
+		"....GGGGGGGG....",
+		"....GGGGGGGG....",
+		"......KK........",
+		"......KK........",
+		"...DDDDDDDD.....",
+		"..DDPDPDPDDD....",
+		"..DPPPDPPPPD....",
+		"..DPPPBPPPDD....",
+		"..DPPBRBPPDP....",
+		"..DPPBPPPPPDP...",
+		"..DDPPJPPPJPD...",
+		"...DPPPPPPPPD...",
+		"....DJ...JJ.....",
+		"....DD...DD.....",
+		".......KK.......",
+		".......KK.......",
+	],
+	# 帧1：螺旋桨斜45°
+	[
+		"......GG........",
+		".....GG.........",
+		"....GG..KK......",
+		"...GG...KK......",
+		"...DDDDDDDD.....",
+		"..DDPDPDPDDD....",
+		"..DPPPDPPPPD....",
+		"..DPPPBPPPDD....",
+		"..DPPBRBPPDP....",
+		"..DPPBPPPPPDP...",
+		"..DDPPJPPPJPD...",
+		"...DPPPPPPPPD...",
+		"....DJ...JJ.....",
+		"....DD...DD.....",
+		".......KK.......",
+		".......KK.......",
+	],
+	# 帧2：螺旋桨垂直
+	[
+		"......G.........",
+		"......G.........",
+		"......G.........",
+		"......G.........",
+		"...DDKKDDDD.....",
+		"..DDPDPDPDDD....",
+		"..DPPPDPPPPD....",
+		"..DPPPBPPPDD....",
+		"..DPPBRBPPDP....",
+		"..DPPBPPPPPDP...",
+		"..DDPPJPPPJPD...",
+		"...DPPPPPPPPD...",
+		"....DJ...JJ.....",
+		"....DD...DD.....",
+		".......G........",
+		".......G........",
+	],
+	# 帧3：同帧1（对称斜45°）
+	[
+		"......GG........",
+		".....GG.........",
+		"....GG..KK......",
+		"...GG...KK......",
+		"...DDDDDDDD.....",
+		"..DDPDPDPDDD....",
+		"..DPPPDPPPPD....",
+		"..DPPPBPPPDD....",
+		"..DPPBRBPPDP....",
+		"..DPPBPPPPPDP...",
+		"..DDPPJPPPJPD...",
+		"...DPPPPPPPPD...",
+		"....DJ...JJ.....",
+		"....DD...DD.....",
+		".......KK.......",
+		".......KK.......",
+	],
+]
+
 # 飞行敌人：小丑无人机 (Joker Drone)
 const SPEED = 110.0
 var patrol_range = 160.0
+
+const FlyEnemyBullet = preload("res://FlyEnemyBullet.gd")
 
 var direction = 1
 var start_pos = Vector2.ZERO
 var alive = true
 var anim_time = 0.0
-
-const STEPS = 12
-static var UNIT_CIRCLE: PackedVector2Array = []
-
-static func _static_init():
-	UNIT_CIRCLE = PackedVector2Array()
-	for i in range(STEPS):
-		var angle = i * 2.0 * PI / STEPS
-		UNIT_CIRCLE.append(Vector2(cos(angle), sin(angle)))
+var shoot_timer = 0.0
+var sprite: Sprite2D
+var drone_textures = []
 
 func _ready():
 	add_to_group("enemies")
 	start_pos = position
 	collision_mask = 1  # 检测玩家图层
+	shoot_timer = randf_range(0.0, 1.5) # 错开发射时间
 	
 	# 碰撞体 (圆形浮空)
 	var shape = CircleShape2D.new()
@@ -30,14 +122,24 @@ func _ready():
 	col.shape = shape
 	add_child(col)
 	
+	# 像素螺旋桨无人机精灵
+	for frame_data in DRONE_FRAMES:
+		drone_textures.append(PixelLib.create_texture(16, 16, frame_data, PALETTE))
+	
+	sprite = Sprite2D.new()
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.texture = drone_textures[0] if drone_textures.size() > 0 else null
+	sprite.flip_h = direction < 0
+	add_child(sprite)
+	
 	body_entered.connect(_on_body_entered)
-	queue_redraw()
 
 func _physics_process(delta):
 	if not alive:
 		return
 		
 	anim_time += delta * 6.0
+	shoot_timer += delta
 	
 	# 水平往复 + 垂直波浪运动
 	position.x += SPEED * direction * delta
@@ -45,40 +147,35 @@ func _physics_process(delta):
 	
 	if position.x >= start_pos.x + patrol_range:
 		direction = -1
-		queue_redraw()
+		sprite.flip_h = true
 	elif position.x <= start_pos.x - patrol_range:
 		direction = 1
-		queue_redraw()
+		sprite.flip_h = false
 		
-	# 控制动画重绘频率
-	queue_redraw()
+	# 更新螺旋桨动画帧
+	var d_size = drone_textures.size()
+	if d_size > 0:
+		sprite.texture = drone_textures[posmod(int(anim_time * 4), d_size)]
+	
+	# 远程子弹发射控制 (当玩家在 420px 范围内时发射)
+	if shoot_timer >= 2.2:
+		shoot_timer = 0.0
+		_shoot_bullet_at_player()
 
-func _draw():
-	if not alive:
+func _shoot_bullet_at_player():
+	var players = get_tree().get_nodes_in_group("player")
+	if players.size() == 0:
+		return
+	var player = players[0]
+	if not is_instance_valid(player) or player.is_dead:
 		return
 		
-	var flip = 1.0 if direction > 0 else -1.0
-	
-	# 1. 顶部旋转螺旋桨 blades
-	var blade_w = sin(anim_time * 4.0) * 18.0
-	draw_line(Vector2(-blade_w, -14), Vector2(blade_w, -14), Color(0.8, 0.8, 0.85, 0.9), 2.5)
-	draw_line(Vector2(0, -14), Vector2(0, -10), Color(0.3, 0.3, 0.35), 2.0)
-	
-	# 2. 小丑无人机球形紫暗色机身
-	draw_circle(Vector2.ZERO, 14.0, Color(0.35, 0.12, 0.38))
-	draw_circle(Vector2.ZERO, 11.0, Color(0.5, 0.15, 0.55))
-	
-	# 3. 紫红色机械单眼
-	var eye_offset = Vector2(4.0 * flip, -1.0)
-	draw_circle(eye_offset, 5.5, Color(0.1, 0.05, 0.15))
-	draw_circle(eye_offset, 3.5, Color(1.0, 0.2, 0.25))
-	draw_circle(eye_offset + Vector2(1.0 * flip, -1.0), 1.2, Color.WHITE) # 单眼高光
-	
-	# 4. 底部小丑尖角下巴
-	var jaw_pts = PackedVector2Array([
-		Vector2(-6, 8), Vector2(0, 15), Vector2(6, 8)
-	])
-	draw_polygon(jaw_pts, PackedColorArray([Color(0.85, 0.15, 0.2)]))
+	var dist = global_position.distance_to(player.global_position)
+	if dist <= 420.0:
+		var bullet = FlyEnemyBullet.new()
+		bullet.global_position = global_position + Vector2(0, 10)
+		bullet.direction = (player.global_position - global_position).normalized()
+		get_parent().add_child(bullet)
 
 func _on_body_entered(body):
 	if not alive:
@@ -108,14 +205,16 @@ func stomp():
 	for c in get_children():
 		if c is CollisionShape2D:
 			c.set_deferred("disabled", true)
-	queue_redraw()
 	
 	# 爆炸掉落销毁动画
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "scale", Vector2(1.3, 0.2), 0.18)
 	tween.tween_property(self, "modulate:a", 0.0, 0.25)
-	tween.chain().tween_callback(func(): hide(); queue_free())
-
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide(); queue_free()
+	)
+	
 func hit_by_batarang():
 	if not alive:
 		return
@@ -131,4 +230,7 @@ func hit_by_batarang():
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "scale", Vector2(0.1, 0.1), 0.15)
 	tween.tween_property(self, "modulate:a", 0.0, 0.15)
-	tween.chain().tween_callback(func(): hide(); queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide(); queue_free()
+	)

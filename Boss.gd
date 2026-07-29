@@ -4,8 +4,47 @@ extends Area2D
 # 10 点独立血量、头顶动态血条、扑克牌弹幕抛射、二阶段狂暴与击败爆裂动画
 
 const JokerCard = preload("res://JokerCard.gd")
+const PixelLib = preload("res://pixel_lib.gd")
 
 const MAX_HP = 10
+
+# 小丑像素调色板
+const PALETTE = {
+	"P": Color(0.48, 0.15, 0.58),   # 紫色身体
+	"D": Color(0.38, 0.1, 0.48),    # 深紫
+	"F": Color(0.95, 0.95, 0.92),   # 苍白脸
+	"G": Color(0.1, 0.85, 0.25),    # 绿发
+	"R": Color(0.9, 0.05, 0.1),     # 红唇
+	"Y": Color(1.0, 0.85, 0.1),     # 黄领结/牙齿
+	"E": Color(0.1, 0.9, 0.9),      # 青色眼睛
+	"W": Color(1.0, 0.95, 0.8),     # 白色高光
+	".": Color.TRANSPARENT,          # 透明
+}
+
+# 小丑像素图数据 (16×20)
+const JOKER_DATA = [
+	"....GGGGGGGG....",
+	"...GGGGGGGGGG...",
+	"..GGGFFFFFGGGG..",
+	"..GFFFFFFFFFGG..",
+	"..FFFFFFFFFFFF..",
+	"..FFEFFFFFEFFF..",
+	"..FFFFFFFFFFFF..",
+	"..FFFRRRRRFFFR..",
+	"..FRRRRRRRRRRF..",
+	"..YFRRRRRRRRFY..",
+	"....YYYYYYYY....",
+	"....Y......Y....",
+	"..DPPPPPPPPPD..",
+	"..DPPPPPPPPPD..",
+	"..DPPP....PPPD..",
+	"..DPPP....PPPD..",
+	"..DPPPPPPPPPD..",
+	"..DPPPPPPPPPD..",
+	"...DDDDDDDDDD...",
+	"....DDDDDDDD....",
+]
+
 var hp = 10
 var invincible_timer = 0.0
 var shoot_timer = 0.0
@@ -15,6 +54,7 @@ var start_x = 0.0
 var patrol_range = 280.0
 var direction = -1.0
 var alive = true
+var joker_sprite = null
 
 func _ready():
 	add_to_group("enemies")
@@ -33,8 +73,14 @@ func _ready():
 	col.shape = shape
 	add_child(col)
 	
+	# 创建小丑像素精灵
+	var tex = PixelLib.create_texture(16, 20, JOKER_DATA, PALETTE)
+	joker_sprite = Sprite2D.new()
+	joker_sprite.texture = tex
+	joker_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(joker_sprite)
+	
 	body_entered.connect(_on_body_entered)
-	queue_redraw()
 
 func _physics_process(delta):
 	if not alive:
@@ -61,6 +107,8 @@ func _physics_process(delta):
 		shoot_timer = 0.0
 		_shoot_joker_card()
 		
+	if joker_sprite:
+		joker_sprite.flip_h = direction < 0
 	queue_redraw()
 
 func _shoot_joker_card():
@@ -81,42 +129,13 @@ func _draw():
 	if not alive:
 		return
 		
-	var flip = 1.0 if direction > 0 else -1.0
 	var is_enraged = hp <= 5
 	
 	# 狂暴气场紫粉光晕
 	var aura_color = Color(0.9, 0.1, 0.8, 0.25) if is_enraged else Color(0.4, 0.1, 0.5, 0.15)
 	draw_circle(Vector2.ZERO, 22.0, aura_color)
 	
-	# 1. 小丑紫色修身战服 (Purple Tuxedo Coat)
-	draw_rect(Rect2(-10, -8, 20, 24), Color(0.38, 0.1, 0.48))
-	draw_rect(Rect2(-8, -6, 16, 20), Color(0.48, 0.15, 0.58))
-	
-	# 黄色领结
-	draw_polygon(PackedVector2Array([
-		Vector2(-4, -6), Vector2(4, -6), Vector2(0, -3)
-	]), PackedColorArray([Color(1.0, 0.85, 0.1)]))
-	
-	# 2. 苍白小丑面容 (Pale Face) & 翠绿头发 (Green Hair)
-	draw_circle(Vector2(0, -16), 10.0, Color(0.95, 0.95, 0.92)) # 苍白脸庞
-	
-	# 绿发
-	var hair_color = Color(0.1, 0.85, 0.25)
-	draw_circle(Vector2(-4, -22), 5.0, hair_color)
-	draw_circle(Vector2(0, -24), 6.0, hair_color)
-	draw_circle(Vector2(4, -22), 5.0, hair_color)
-	
-	# 3. 巨幅狂笑鲜红嘴唇与黄色尖牙 (Joker Smile)
-	var mouth_color = Color(0.9, 0.05, 0.1)
-	draw_circle(Vector2(0, -12), 4.5, mouth_color)
-	draw_line(Vector2(-6 * flip, -13), Vector2(6 * flip, -13), Color(1.0, 0.9, 0.2), 2.0)
-	
-	# 4. 阴森发光眼睛 (Glowing Eyes)
-	var eye_col = Color(1.0, 0.1, 0.1) if is_enraged else Color(0.1, 0.9, 0.9)
-	draw_circle(Vector2(-3.5 * flip, -18), 2.0, eye_col)
-	draw_circle(Vector2(3.5 * flip, -18), 2.0, eye_col)
-	
-	# 5. 头顶动态 HP 血条 (Floating HP Bar)
+	# 头顶动态 HP 血条 (Floating HP Bar)
 	var bar_w = 44.0
 	var bar_h = 6.0
 	var bar_pos = Vector2(-22, -34)
@@ -188,4 +207,7 @@ func _die_boss():
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "scale", Vector2(3.5, 0.1), 0.4)
 	tween.tween_property(self, "modulate:a", 0.0, 0.4)
-	tween.chain().tween_callback(func(): hide(); queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide(); queue_free()
+	)

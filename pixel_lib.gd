@@ -6,7 +6,7 @@
 #   sprite.texture = tex
 
 static func create_texture(width: int, height: int,
-		pixels: Array[String], palette: Dictionary) -> Texture2D:
+		pixels: Array, palette: Dictionary) -> Texture2D:
 	"""从字符串数组生成像素纹理
 	
 	参数:

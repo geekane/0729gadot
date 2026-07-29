@@ -218,7 +218,10 @@ func _spawn_landing_dust():
 		var vel = item[1]
 		tween.tween_property(p, "position", vel * 0.2, 0.2)
 		tween.tween_property(p, "modulate:a", 0.0, 0.2)
-	tween.chain().tween_callback(func(): dust_node.hide(); dust_node.queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(dust_node):
+			dust_node.hide(); dust_node.queue_free()
+	)
 
 func _physics_process(delta):
 	if is_dead:
@@ -335,7 +338,10 @@ func die():
 	
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "modulate", Color(1.0, 0.2, 0.2, 0.6), 0.4)
-	tween.chain().tween_callback(func(): hide())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide()
+	)
 
 func shoot_batarang():
 	"""发射蝙蝠飞镖"""

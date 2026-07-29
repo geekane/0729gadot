@@ -80,14 +80,33 @@ static func create_building_texture(width: int, height: int,
 				min(TILE_SIZE * 2, height - strip_y - TILE_SIZE),
 				width, base_color)
 	
-	# 屋顶装饰线（像素化天线或水塔）
-	if rng.randi() % 3 == 0:
-		var ant_x = width / 2 - 1
-		PixelLib.fill_rect(img, ant_x, 0, 2, 8, Color(0.5, 0.55, 0.65, 0.8))
-		PixelLib.fill_rect(img, ant_x - 3, 0, 7, 2, Color(0.5, 0.55, 0.65, 0.8))
+	# 哥特风格屋顶装饰 (哥特尖塔 / 木质水塔 / 红光电波塔)
+	var rooftop_style = rng.randi() % 4
+	if rooftop_style == 1:
+		# 哥特尖塔 (Gothic Spire)
+		var cx = width / 2
+		PixelLib.fill_rect(img, cx - 1, 0, 2, 16, Color(0.7, 0.75, 0.85, 0.9))
+		PixelLib.fill_rect(img, cx - 4, 16, 8, 12, base_color)
+		PixelLib.fill_rect(img, cx - 8, 28, 16, 8, base_color)
+	elif rooftop_style == 2:
+		# 哥谭天台木质水塔 (Wooden Water Tower on Stilts)
+		var cx = width / 2
+		# 金属支撑腿
+		PixelLib.fill_rect(img, cx - 14, 16, 3, 20, Color(0.3, 0.35, 0.45, 0.9))
+		PixelLib.fill_rect(img, cx + 11, 16, 3, 20, Color(0.3, 0.35, 0.45, 0.9))
+		# 木桶主体
+		PixelLib.fill_rect(img, cx - 16, 0, 32, 16, Color(0.45, 0.28, 0.18, 0.95))
+		# 金属箍环
+		PixelLib.fill_rect(img, cx - 16, 4, 32, 2, Color(0.7, 0.75, 0.85, 0.9))
+		PixelLib.fill_rect(img, cx - 16, 10, 32, 2, Color(0.7, 0.75, 0.85, 0.9))
+	elif rooftop_style == 3:
+		# 电波避雷塔带红光 (Radio Tower with Pulsing Red Beacon)
+		var cx = width / 2
+		PixelLib.fill_rect(img, cx - 1, 4, 2, 24, Color(0.65, 0.7, 0.8, 0.85))
+		PixelLib.fill_rect(img, cx - 2, 0, 4, 4, Color(1.0, 0.15, 0.2, 0.95)) # 顶部闪烁红光
 	
 	# 窗户 — 像素网格排列，随机亮灯
-	for wy in range(TILE_SIZE * 3, height - TILE_SIZE, TILE_SIZE * 3):
+	for wy in range(TILE_SIZE * 4, height - TILE_SIZE, TILE_SIZE * 3):
 		for wx in range(TILE_SIZE, width - TILE_SIZE, TILE_SIZE * 3):
 			if rng.randi() % 5 != 0:  # 80% 亮灯
 				PixelLib.fill_rect(img, wx, wy, 4, 4, window_color)
@@ -96,6 +115,34 @@ static func create_building_texture(width: int, height: int,
 				img.set_pixel(wx + 4, wy - 1, Color(0.05, 0.05, 0.1, 0.5))
 				img.set_pixel(wx - 1, wy + 4, Color(0.05, 0.05, 0.1, 0.5))
 				img.set_pixel(wx + 4, wy + 4, Color(0.05, 0.05, 0.1, 0.5))
+	
+	return ImageTexture.create_from_image(img)
+
+static func create_clock_tower_texture(width: int, height: int) -> Texture2D:
+	"""生成 DC 漫画哥谭标志性大钟楼 (Gotham Clock Tower) 纹理"""
+	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	var base_col = Color(0.12, 0.15, 0.26, 0.95)
+	img.fill(base_col)
+	
+	# 顶端哥特尖屋顶
+	var cx = width / 2
+	PixelLib.fill_rect(img, cx - 2, 0, 4, 20, Color(0.7, 0.75, 0.85, 0.9))
+	
+	# 钟楼大表盘 (Gotham Illuminated Clock Face)
+	var clock_r = 24
+	var cy = 55
+	for y in range(cy - clock_r, cy + clock_r + 1):
+		for x in range(cx - clock_r, cx + clock_r + 1):
+			var dx = x - cx
+			var dy = y - cy
+			if dx * dx + dy * dy <= clock_r * clock_r:
+				img.set_pixel(x, y, Color(1.0, 0.92, 0.5, 0.9)) # 发光淡黄色表盘
+				if dx * dx + dy * dy >= (clock_r - 3) * (clock_r - 3):
+					img.set_pixel(x, y, Color(0.1, 0.1, 0.15, 0.95)) # 黑色外边框
+	
+	# 钟表指针 (Clock Hands)
+	PixelLib.fill_rect(img, cx, cy - 14, 3, 14, Color(0.1, 0.1, 0.15, 0.95))
+	PixelLib.fill_rect(img, cx, cy, 10, 3, Color(0.1, 0.1, 0.15, 0.95))
 	
 	return ImageTexture.create_from_image(img)
 

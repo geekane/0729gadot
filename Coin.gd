@@ -7,7 +7,7 @@ var anim_time = 0.0
 var base_y = 0.0
 var col_shape: CollisionShape2D = null
 var sprite: Sprite2D = null
-var coin_textures: Array[Texture2D] = []
+var coin_textures = []
 
 const COIN_PALETTE = {
 	".": Color.TRANSPARENT,
@@ -130,8 +130,10 @@ func _physics_process(delta):
 	# 物理帧驱动金币上下浮动 (Bobbing)，确保 Physics Server 碰撞体同步
 	position.y = base_y + sin(anim_time) * 3.5
 	
-	# 像素精灵纹理循环（8 帧旋转动画，减缓速度）
-	sprite.texture = coin_textures[int(anim_time * 2) % 8]
+	# 像素精灵纹理循环（8 帧旋转动画，使用 posmod 防越界）
+	var tex_count = coin_textures.size()
+	if tex_count > 0:
+		sprite.texture = coin_textures[posmod(int(anim_time * 2), tex_count)]
 		
 	# 双重防漏判定：在物理帧检测重叠对象，防止高速移动下错过信号
 	var bodies = get_overlapping_bodies()
@@ -163,4 +165,7 @@ func _collect(body):
 	tween.tween_property(self, "position:y", position.y - 30.0, 0.22)
 	tween.tween_property(self, "scale", Vector2(1.5, 1.5), 0.22)
 	tween.tween_property(self, "modulate:a", 0.0, 0.22)
-	tween.chain().tween_callback(func(): hide(); queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide(); queue_free()
+	)

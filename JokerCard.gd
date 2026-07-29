@@ -63,4 +63,7 @@ func _destroy():
 	var tween = create_tween().set_parallel(true)
 	tween.tween_property(self, "scale", Vector2(0.1, 0.1), 0.1)
 	tween.tween_property(self, "modulate:a", 0.0, 0.1)
-	tween.chain().tween_callback(func(): hide(); queue_free())
+	tween.chain().tween_callback(func():
+		if is_instance_valid(self):
+			hide(); queue_free()
+	)

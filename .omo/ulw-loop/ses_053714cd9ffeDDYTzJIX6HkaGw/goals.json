@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "activeGoalId": "1d3b760e-b4c7-4f07-9a33-5ff853987f41",
+  "activeGoalId": "62ec2ce6-7ebc-4666-bfda-49da6ef0c570",
   "goals": [
     {
-      "id": "1d3b760e-b4c7-4f07-9a33-5ff853987f41",
-      "title": "Continue",
+      "id": "62ec2ce6-7ebc-4666-bfda-49da6ef0c570",
+      "title": "持续追踪文档修改对 agentdm 和reamde修改",
       "status": "in_progress",
       "successCriteria": []
     }
