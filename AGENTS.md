@@ -814,6 +814,24 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 - ❌ `TextureRect.EXPAND_KEEP_ASPECT_CENTERED` 在 Godot 4.7 中不存在 → 改为 `stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED`
 - ❌ `tex.texture_filter` 不能设置在 Texture2D 资源上 → 改在 Sprite2D/TextureRect 节点上设置
 
+### 11.8 Phase 4 — 敌人像素化
+
+| 文件 | 像素尺寸 | Scale | 说明 |
+|------|---------|-------|------|
+| Enemy.gd | 14×12 蘑菇怪 | 2.0 | 像素颜料 + Sprite2D，去掉 `_draw()` |
+| FlyEnemy.gd | 16×16 小丑无人机 | 1.0 | 4帧螺旋桨旋转动画，去掉 `_draw()` |
+| Boss.gd | 16×20 小丑 Joker | 2.2 | 像素 Sprite2D，保留矢量 `_draw()` 血条+气场 |
+
+**测试结果**: 800 帧全自动游玩测试通过，0 SCRIPT ERROR，平均 FPS 58.7，最低 FPS 52。
+
+**踩坑记录**:
+- ❌ `PixelLib.create_texture` 参数 `pixels: Array[String]` 类型签名 → 调用方传入非泛型数组时报 `Invalid type`
+  - 修复：改为 `pixels: Array`（去掉泛型约束），GDScript 运行时类型系统对泛型数组约束过严
+- ❌ `Array[Texture2D]` 类型数组在跨帧调用中偶发越界 → 改为普通数组 `= []`
+- ❌ Tween callback 中 `hide()` 在节点已释放时报 `Nonexistent function 'hide' in base 'Nil'`
+  - 根因：场景重启后旧节点 Tween 回调执行时节点已被 `queue_free`
+  - 修复：所有 `tween_callback` 统一加 `if is_instance_valid(self):` 守卫
+
 ---
 
 ## 12. 踩坑与最佳实践汇总
@@ -905,7 +923,7 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 | 风险点 | 现象 / 隐患 | 底层根因 | 规范解决方案 |
 |------|------|------|---------|
 | `draw_polygon` 镜像翻转 (`flip = -1`) | 随机/偶发 1 帧屏幕白闪或暗屏 | `flip = -1` 使多边形顶点 Winding Order 变成 Clockwise 顺时针，在某些 GPU 驱动 (如 RTX 2080S 566.36) 上可能抛出退化三角形/白像素 | 在 `flip = -1` 时对顶点数组调用 `.reverse()` 显式保持 Counter-Clockwise (逆时针)，确保多边形有符号面积 > 0 |
-| `queue_free()` 前的幽灵帧绘制 | 节点被销毁的前 1 帧突然闪现 | 节点 `queue_free()` 是延迟到帧末清理，在动画结束该帧可能比 Render Pipeline 先/后生效导致以 1.0 Alpha 重绘 | 在所有 Tween 的 `tween_callback` 中，统一采用 `func(): hide(); queue_free()` 先隐藏节点再销毁 |
+| `queue_free()` 前的幽灵帧绘制 | 节点被销毁的前 1 帧突然闪现 | 节点 `queue_free()` 是延迟到帧末清理，在动画结束该帧可能比 Render Pipeline 先/后生效导致以 1.0 Alpha 重绘 | 在所有 Tween 的 `tween_callback` 中，统一采用 `func(): if is_instance_valid(self): hide(); queue_free()` 先验证再隐藏销毁 |
 | Camera `lerp` 镜头步幅突变 | 画面边缘瞬间白闪 (露底) | 帧率掉帧导致 `delta` 突大，`12.0 * delta` 溢出导致 Camera 坐标跳变，背景 `ColorRect` 与视口脱节露出默认 Clear Color | 在 Camera 移动插值中使用 `clamp(12.0 * delta, 0.0, 1.0)` 限制单帧最大跟随步幅 |
 | 护臂刺刺/局部多边形坐标算错 | 转向时刺刺穿透身体拉成大狭长线段 | 护臂刺刺误用了 `Vector2(-15 * flip)` 导致 left_arm (x=-12) 刺向右边 (+15)，跨越全身 | 左右两侧手臂分别独立计算固定绘制坐标，不直接对局部 X 坐标做盲目乘 `flip` 运算 |
 

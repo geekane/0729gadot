@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "activeGoalId": "62ec2ce6-7ebc-4666-bfda-49da6ef0c570",
+  "activeGoalId": "8cd40681-f7d9-40d7-8556-ec87a2a2a982",
   "goals": [
     {
-      "id": "62ec2ce6-7ebc-4666-bfda-49da6ef0c570",
-      "title": "持续追踪文档修改对 agentdm 和reamde修改",
+      "id": "8cd40681-f7d9-40d7-8556-ec87a2a2a982",
+      "title": "flying的敌人过小，而且打出的子弹没法造成伤害 此外就是左右移动的板子跳上去就掉下来，优化",
       "status": "in_progress",
       "successCriteria": []
     }
