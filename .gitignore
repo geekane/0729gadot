@@ -1,0 +1,19 @@
+# Godot
+.godot/
+*.uid
+
+# Build output
+build/
+
+# Screenshots
+screenshots/
+
+# Monitor logs
+.monitor_log.txt
+.monitor_snapshot.json
+.monitor_test.txt
+.monitor_test.json
+
+# Scripts
+check_changes.ps1
+monitor.ps1
