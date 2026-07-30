@@ -153,7 +153,8 @@ func hit_by_melee(damage: int = 10):
 		return
 	hp -= damage
 	if hp <= 0:
-		SoundManager.play("melee_hit", -4.0)
+		if has_node("/root/SoundManager"):
+			get_node("/root/SoundManager").call("play", "melee_hit", -4.0)
 		_die_enemy()
 
 func hit_by_batarang(damage: int = 1):
@@ -162,7 +163,8 @@ func hit_by_batarang(damage: int = 1):
 		return
 	hp -= damage
 	
-	SoundManager.play("batarang_hit", -6.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "batarang_hit", -6.0)
 	
 	modulate = Color(2.5, 2.5, 2.5)
 	var flash_tween = create_tween()

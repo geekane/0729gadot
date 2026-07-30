@@ -271,6 +271,9 @@ func _process(delta):
 	match state:
 		GameState.MENU:
 			_blink_step(delta)
+			var logo = find_child("MenuLogo", true, false)
+			if logo and is_instance_valid(logo):
+				logo.position.y = 35.0 + sin(anim_time * 2.0) * 4.0
 			if Input.is_action_just_pressed("ui_accept"):
 				_start_game()
 		GameState.PLAYING:
@@ -558,6 +561,17 @@ func _create_menu():
 		stars.add_child(star)
 	add_child(stars)
 
+	# 🌆 下一层级：抽象少色块哥谭夜景底图 (Abstract Min-Color Background)
+	if ResourceLoader.exists("res://assets/menu_bg_abstract.png"):
+		var bg_tex = load("res://assets/menu_bg_abstract.png")
+		var bg_tr = TextureRect.new()
+		bg_tr.texture = bg_tex
+		bg_tr.size = Vector2(1152, 648)
+		bg_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg_tr.stretch_mode = TextureRect.STRETCH_SCALE
+		bg_tr.modulate = Color(0.85, 0.9, 1.0, 0.88)
+		add_child(bg_tr)
+
 	# 哥谭菜单背景探照灯 (Bat-Signal Beam & Projected Emblem)
 	var menu_bat_signal = Node2D.new()
 	menu_bat_signal.name = "BatSignalBeam"
@@ -581,167 +595,91 @@ func _create_menu():
 		# 云层发光黄晕
 		menu_bat_signal.draw_circle(top_center, 55.0, Color(1.0, 0.88, 0.25, 0.45 * flk))
 		menu_bat_signal.draw_circle(top_center, 40.0, Color(1.0, 0.95, 0.5, 0.7 * flk))
-		
-		# 蝙蝠徽标 Bat Silhouette
-		var bx = top_center.x
-		var by = top_center.y
-		var bat_pts = PackedVector2Array([
-			Vector2(bx - 26, by - 4), Vector2(bx - 15, by - 12), Vector2(bx, by - 5),
-			Vector2(bx + 15, by - 12), Vector2(bx + 26, by - 4), Vector2(bx + 22, by + 9),
-			Vector2(bx + 11, by + 14), Vector2(bx, by + 7), Vector2(bx - 11, by + 14),
-			Vector2(bx - 22, by + 9)
-		])
-		menu_bat_signal.draw_polygon(bat_pts, PackedColorArray([Color(0.08, 0.08, 0.14, 0.95 * flk)]))
-		menu_bat_signal.draw_polygon(PackedVector2Array([Vector2(bx - 5, by - 5), Vector2(bx - 2, by - 14), Vector2(bx, by - 5)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
-		menu_bat_signal.draw_polygon(PackedVector2Array([Vector2(bx, by - 5), Vector2(bx + 2, by - 14), Vector2(bx + 5, by - 5)]), PackedColorArray([Color(0.08, 0.08, 0.14, 0.95)]))
 	)
 	add_child(menu_bat_signal)
 	
-	# 主界面 Panel 容器
-	var panel = Panel.new()
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.14, 0.26, 0.92)
-	style.corner_radius_top_left = 18
-	style.corner_radius_top_right = 18
-	style.corner_radius_bottom_left = 18
-	style.corner_radius_bottom_right = 18
-	style.border_width_left = 2
-	style.border_width_right = 2
-	style.border_width_top = 2
-	style.border_width_bottom = 2
-	style.border_color = Color(1.0, 0.85, 0.2, 0.75)
-	style.shadow_size = 18
-	style.shadow_color = Color(0, 0, 0, 0.5)
-	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(186, 50)
-	panel.size = Vector2(780, 530)
-	panel.name = "MenuPanel"
-	add_child(panel)
-	
-	# 🖼️ 左侧精美抠图海报 (Batman Hero Poster)
-	if ResourceLoader.exists("res://assets/menu_poster_nobg.png"):
-		var poster_tex = load("res://assets/menu_poster_nobg.png")
-		var poster = TextureRect.new()
-		poster.texture = poster_tex
-		poster.custom_minimum_size = Vector2(260, 480)
-		poster.size = Vector2(260, 480)
-		poster.position = Vector2(20, 25)
-		poster.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		poster.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		poster.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		panel.add_child(poster)
-	
-	# 顶端标题 Header
-	var title_vbox = VBoxContainer.new()
-	title_vbox.position = Vector2(290, 18)
-	title_vbox.size = Vector2(470, 95)
-	title_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	title_vbox.add_theme_constant_override("separation", 6)
-	panel.add_child(title_vbox)
-	
-	var icon_box = HBoxContainer.new()
-	icon_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	icon_box.add_child(_create_pixel_icon("bat", Vector2(42, 42)))
-	title_vbox.add_child(icon_box)
-	
-	var title = Label.new()
-	title.text = "蝙蝠侠：哥谭暗夜守护者"
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
-	title.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.1, 0.95))
-	title.add_theme_constant_override("outline_size", 6)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_vbox.add_child(title)
-	
-	var subtitle = Label.new()
-	subtitle.text = "GOTHAM ADVENTURE: BATMAN STRIKES"
-	subtitle.add_theme_font_size_override("font_size", 12)
-	subtitle.add_theme_color_override("font_color", Color(0.6, 0.75, 0.95, 0.8))
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_vbox.add_child(subtitle)
+	# 🦇 顶部悬浮全中文标题 Logo (chinese_title_logo.png)
+	if ResourceLoader.exists("res://assets/ui/chinese_title_logo.png"):
+		var logo_tex = load("res://assets/ui/chinese_title_logo.png")
+		var logo_tr = TextureRect.new()
+		logo_tr.texture = logo_tex
+		logo_tr.name = "MenuLogo"
+		logo_tr.custom_minimum_size = Vector2(460, 140)
+		logo_tr.size = Vector2(460, 140)
+		logo_tr.position = Vector2(346, 30)
+		logo_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		logo_tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		logo_tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(logo_tr)
+	else:
+		var title_lbl = Label.new()
+		title_lbl.text = "蝙蝠侠：哥谭出击"
+		title_lbl.add_theme_font_size_override("font_size", 36)
+		title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
+		title_lbl.position = Vector2(346, 60)
+		add_child(title_lbl)
 
-	# 垂直功能按钮组容器 (排版干净大气)
-	var btn_vbox = VBoxContainer.new()
-	btn_vbox.position = Vector2(310, 122)
-	btn_vbox.size = Vector2(440, 380)
-	btn_vbox.add_theme_constant_override("separation", 10)
-	panel.add_child(btn_vbox)
-	
-	var btn_configs = [
-		{"text": "🎮  开始出击 (START ADVENTURE)", "color": Color(1.0, 0.92, 0.3), "action": func(): _start_game()},
-		{"text": "🗺️  战役关卡选择 (LEVEL SELECT)", "color": Color(0.9, 0.95, 1.0), "action": func(): _show_level_select_dialog()},
-		{"text": "🛡️  无敌保护模式: %s" % ("【已开启 - 生命无限】" if god_mode_enabled else "【已关闭】"), "color": Color(0.3, 0.95, 1.0) if god_mode_enabled else Color(0.75, 0.82, 0.95), "god_btn": true, "action": func(): pass},
-		{"text": "🏆  哥谭荣誉榜 (HIGH SCORES)", "color": Color(1.0, 0.8, 0.2), "action": func(): _show_high_score_dialog()},
-		{"text": "📜  蝙蝠战术指南 (CONTROLS & SKILLS)", "color": Color(0.7, 0.85, 1.0), "action": func(): _show_controls_dialog()},
-		{"text": "🚪  退出客户端 (EXIT GAME)", "color": Color(1.0, 0.45, 0.45), "action": func(): get_tree().quit()}
+	# 全中文艺术按钮配置 (绑定切片出的中文 TextureButton 元素)
+	var texture_btn_configs = [
+		{"tex_path": "res://assets/ui/chinese_btn_start.png", "pos": Vector2(416, 190), "action": func(): _start_game()},
+		{"tex_path": "res://assets/ui/chinese_btn_level.png", "pos": Vector2(416, 270), "action": func(): _show_level_select_dialog()},
+		{"tex_path": "res://assets/ui/chinese_btn_controls.png", "pos": Vector2(416, 350), "action": func(): _show_controls_dialog()},
+		{"tex_path": "res://assets/ui/chinese_btn_scores.png", "pos": Vector2(416, 430), "action": func(): _show_high_score_dialog()},
+		{"tex_path": "res://assets/ui/chinese_btn_exit.png", "pos": Vector2(416, 510), "action": func(): get_tree().quit()}
 	]
 	
-	for bd in btn_configs:
-		var btn = Button.new()
-		btn.text = bd["text"]
-		btn.add_theme_font_size_override("font_size", 16)
-		btn.add_theme_color_override("font_color", bd["color"])
-		btn.custom_minimum_size = Vector2(400, 48)
+	for cfg in texture_btn_configs:
+		var btn = TextureButton.new()
+		var btn_w = 320.0
+		var btn_h = 68.0
 		
-		# 常态 Style
-		var bstyle = StyleBoxFlat.new()
-		bstyle.bg_color = Color(0.14, 0.20, 0.36, 0.92)
-		bstyle.corner_radius_top_left = 12
-		bstyle.corner_radius_top_right = 12
-		bstyle.corner_radius_bottom_left = 12
-		bstyle.corner_radius_bottom_right = 12
-		bstyle.border_width_left = 1
-		bstyle.border_width_right = 1
-		bstyle.border_width_top = 1
-		bstyle.border_width_bottom = 1
-		bstyle.border_color = Color(0.35, 0.48, 0.75, 0.5)
-		btn.add_theme_stylebox_override("normal", bstyle)
+		if ResourceLoader.exists(cfg["tex_path"]):
+			var tex = load(cfg["tex_path"])
+			btn.texture_normal = tex
+			btn.ignore_texture_size = true
+			btn.stretch_mode = TextureButton.STRETCH_SCALE
 		
-		# 悬停 & 键盘 Focus Style (耀眼金边与暗蓝闪耀)
-		var bhover = StyleBoxFlat.new()
-		bhover.bg_color = Color(0.24, 0.36, 0.64, 0.98)
-		bhover.corner_radius_top_left = 12
-		bhover.corner_radius_top_right = 12
-		bhover.corner_radius_bottom_left = 12
-		bhover.corner_radius_bottom_right = 12
-		bhover.border_width_left = 2
-		bhover.border_width_right = 2
-		bhover.border_width_top = 2
-		bhover.border_width_bottom = 2
-		bhover.border_color = Color(1.0, 0.85, 0.2, 0.95)
-		bhover.shadow_size = 6
-		bhover.shadow_color = Color(1.0, 0.85, 0.2, 0.35)
-		btn.add_theme_stylebox_override("hover", bhover)
-		btn.add_theme_stylebox_override("focus", bhover)
+		btn.custom_minimum_size = Vector2(btn_w, btn_h)
+		btn.size = Vector2(btn_w, btn_h)
+		btn.position = cfg["pos"]
+		btn.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		
-		btn.mouse_entered.connect(func(): _play_sound("menu_hover"))
+		# 🎯 极其关键：设置 Pivoted Offset 在中央，保证按钮以中心为原点平滑放大缩小 (NO Offset Drift)
+		btn.pivot_offset = Vector2(btn_w / 2.0, btn_h / 2.0)
 		
-		if bd.get("god_btn", false):
-			var b_ref = btn
-			btn.pressed.connect(func():
-				_play_sound("menu_click")
-				god_mode_enabled = not god_mode_enabled
-				b_ref.text = "🛡️  无敌保护模式: %s" % ("【已开启 - 生命无限】" if god_mode_enabled else "【已关闭】")
-				b_ref.add_theme_color_override("font_color", Color(0.3, 0.95, 1.0) if god_mode_enabled else Color(0.75, 0.82, 0.95))
-				_update_lives_hud()
-			)
-		else:
-			btn.pressed.connect(func():
-				_play_sound("menu_click")
-				bd["action"].call()
-			)
-		btn_vbox.add_child(btn)
+		# 悬停放大 1.15x 与缩回 1.0x 的动态 Tween 动画
+		btn.mouse_entered.connect(func():
+			_play_sound("menu_hover")
+			var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tween.tween_property(btn, "scale", Vector2(1.15, 1.15), 0.15)
+		)
+		btn.mouse_exited.connect(func():
+			var tween = create_tween().set_ease(Tween.EASE_OUT)
+			tween.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
+		)
 		
+		# 按压弹跳 + 页面跳转
+		var action_func = cfg["action"]
+		btn.pressed.connect(func():
+			_play_sound("menu_click")
+			var press_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+			press_tween.tween_property(btn, "scale", Vector2(0.92, 0.92), 0.08)
+			press_tween.tween_property(btn, "scale", Vector2(1.15, 1.15), 0.08)
+			press_tween.chain().tween_callback(func(): action_func.call())
+		)
+		
+		add_child(btn)
+
 	overlay = CanvasLayer.new()
 	overlay.name = "Overlay"
 	overlay_label = Label.new()
-	overlay_label.text = "按 空格键 或 点击上方按钮 开始出击"
+	overlay_label.text = "点击上方艺术按钮 或 按 空格键 开启出击"
 	overlay_label.add_theme_font_size_override("font_size", 18)
 	overlay_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.4, 0.9))
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	overlay_label.add_theme_constant_override("outline_size", 3)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	overlay_label.position = Vector2(246, 580)
+	overlay_label.position = Vector2(246, 595)
 	overlay_label.size = Vector2(660, 35)
 	overlay.add_child(overlay_label)
 	add_child(overlay)

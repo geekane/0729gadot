@@ -348,7 +348,8 @@ func _enter_stunned_state():
 	"""进入砸地眩晕破防状态"""
 	current_state = BossState.STUNNED
 	stun_timer = 1.8
-	SoundManager.play("melee_hit", -2.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "melee_hit", -2.0)
 	_on_impact_land()
 	
 	var game = get_tree().current_scene
@@ -361,7 +362,8 @@ func _start_counter_swipe(player_node):
 	"""极速秒杀级反击风暴 (惩罚贪刀玩家)"""
 	current_state = BossState.COUNTER_SWIPE
 	counter_swipe_timer = 0.45
-	SoundManager.play("boss_roar", -2.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_roar", -2.0)
 	
 	var game = get_tree().current_scene
 	if game and game.has_method("_spawn_floating_text"):
@@ -379,7 +381,8 @@ func _start_counter_swipe(player_node):
 func _start_pounce(target_pos: Vector2):
 	current_state = BossState.POUNCE
 	state_timer = 2.0
-	SoundManager.play("boss_roar", -4.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_roar", -4.0)
 	var dx = target_pos.x - position.x
 	velocity.x = clamp(dx * 2.0, -450.0, 450.0)
 	velocity.y = -480.0
@@ -409,7 +412,8 @@ func _shoot_joker_card():
 	var player_pos = player.global_position if is_instance_valid(player) else (global_position + Vector2(-200, 200))
 	var spawn_pos = global_position + Vector2(28.0 * facing_dir, 10.0)
 	
-	SoundManager.play("boss_roar", -10.0, randf_range(0.9, 1.1))
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_roar", -10.0, randf_range(0.9, 1.1))
 	
 	var card = JokerCard.new()
 	card.position = spawn_pos
@@ -430,7 +434,8 @@ func _shoot_3way_cards():
 	if base_dir == Vector2.ZERO:
 		base_dir = Vector2(0.0, 1.0)
 		
-	SoundManager.play("boss_roar", -6.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_roar", -6.0)
 	
 	# 🎯 3 向散弹扑克牌：主向量直指玩家位置，左右各偏转 20 度扇形发射！
 	for angle_offset in [-0.35, 0.0, 0.35]:
@@ -578,7 +583,8 @@ func _apply_chip_damage(damage: int, text_str: String):
 	hp -= damage
 	invincible_timer = 0.15
 	
-	SoundManager.play("boss_hit", -6.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_hit", -6.0)
 	
 	modulate = Color(2.0, 2.0, 2.0)
 	var flash_tween = create_tween()
@@ -611,8 +617,9 @@ func _apply_damage(damage: int, text_str: String):
 	hp -= damage
 	invincible_timer = 0.2
 	
-	SoundManager.play("melee_hit", -2.0)
-	SoundManager.play("boss_hit", -4.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "melee_hit", -2.0)
+		get_node("/root/SoundManager").call("play", "boss_hit", -4.0)
 	
 	modulate = Color(3.5, 3.5, 3.5)
 	var flash_tween = create_tween()
@@ -639,7 +646,8 @@ func _apply_damage(damage: int, text_str: String):
 
 func _spawn_armor_block_effects():
 	"""触发金属护甲弹刀 0 伤害特效 (Armored Block Sparks)"""
-	SoundManager.play("menu_hover", -3.0)
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "menu_hover", -3.0)
 	var game = get_tree().current_scene
 	if game and game.has_method("_spawn_particle_burst"):
 		game._spawn_particle_burst(global_position, Color(0.9, 0.9, 0.95))
@@ -662,7 +670,8 @@ func _die_boss():
 	set_physics_process(false)
 	monitoring = false
 	
-	SoundManager.play("boss_death")
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "boss_death")
 	
 	for c in get_children():
 		if c is CollisionShape2D:

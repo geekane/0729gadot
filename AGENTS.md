@@ -1420,3 +1420,49 @@ func trigger_hit_stop(duration: float = 0.05):
 
 ---
 
+### 12.23 高级主菜单 UI 全中文拆解与动态 Hover 缩放动画黄金基准 (Master Menu UI & Pivoted Hover Scale Standard)
+
+> [!IMPORTANT]
+> 本章节记录实战总结出的 **最成熟、最高品质的主菜单 UI 美术生成、全中文切片拆解、抽象少色块背景层与 Central Pivoted 动态 Hover 缩放动画黄金标准**。
+
+#### 1. UI 美术生成与全中文约束 (Full Chinese UI Prompt Rules)
+- **强制全中文汉字**：AI 提示词中必须显式指定 `FULL CHINESE TEXT CHARACTERS ONLY`，绝不允许混入英文单词。
+- **纯蓝扣图背景 (Chroma Blue Screen RGB 0,0,255)**：背景必须为平整纯蓝幕，按钮与 Logo 主体严禁包含蓝色，以确保 100% 干净抠图。
+- **抽象少色块底图 (Abstract Min-Color Background)**：底层背景必须设计为色块少、色调沉稳极简的抽象画（如 [menu_bg_abstract.png](file:///d:/godot-test-project/assets/menu_bg_abstract.png)），作为 UI 的下一层级。
+
+#### 2. Python 自动化抠图与连通域切片拆解管线 (UI Matting & Slicing Pipeline)
+- 脚本：`scripts/tools/slice_menu_ui_elements.py`
+- 算法：将大图转换至 HSV 空间剔除纯蓝幕 (`lower_blue=[90,80,80]`, `upper_blue=[135,255,255]`)，利用 OpenCV `cv2.findContours` 提取连通区域外接矩形，按 Y 轴坐标垂直排序，切割导出为独立透明贴图：
+  - `chinese_title_logo.png`（标题 Logo）
+  - `chinese_btn_start.png`（“开始出击”按钮）
+  - `chinese_btn_level.png`（“关卡战役”按钮）
+  - `chinese_btn_controls.png`（“战术指南”按钮）
+  - `chinese_btn_scores.png`（“荣誉榜”按钮）
+  - `chinese_btn_exit.png`（“退出客户端”按钮）
+
+#### 3. Godot 中心 Pivot 动态 Hover 缩放与页面跳转公式 (Central Pivoted Hover Scale Formula)
+- **中心 Pivot 关键设定**：为防止 `scale` 缩放时控件朝右下角偏移，**必须显式设置 `pivot_offset` 为按钮正中心**：
+  ```gdscript
+  btn.pivot_offset = Vector2(btn_w / 2.0, btn_h / 2.0)
+  ```
+- **Hover 膨胀动画 (`mouse_entered`)**：
+  ```gdscript
+  var tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+  tween.tween_property(btn, "scale", Vector2(1.15, 1.15), 0.15)
+  ```
+- **离开恢复动画 (`mouse_exited`)**：
+  ```gdscript
+  var tween = create_tween().set_ease(Tween.EASE_OUT)
+  tween.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
+  ```
+- **按压弹跳与页面跳转 (`pressed`)**：
+  ```gdscript
+  var press_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+  press_tween.tween_property(btn, "scale", Vector2(0.92, 0.92), 0.08)
+  press_tween.tween_property(btn, "scale", Vector2(1.15, 1.15), 0.08)
+  press_tween.chain().tween_callback(func(): action_func.call())
+  ```
+
+---
+
+
