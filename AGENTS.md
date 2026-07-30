@@ -633,7 +633,7 @@ func _on_process_frame():
         _capture("screenshot_03_jumping.png")  # 第80帧：跳跃
 ```
 
-**使用方法**: `godot_console.exe --path . --script TestRunner.gd`
+**使用方法**: `godot_console.exe --path . --script scripts/tools/TestRunner.gd`
 
 **注意**: TestRunner 继承 `SceneTree` 而非 `Node2D`，这是一个独立的 headless runner，不能混入主场景。
 
@@ -862,7 +862,7 @@ var LEVEL_CONFIGS = {
 | 1 | 背景像素化（月亮/大楼/云/管道/草地） | ✅ 完成 |
 | 2 | 道具+UI（Coin/Hazard/HUD 图标） | ✅ 完成 |
 | 3 | 角色像素化（Player） | ❌ 待做 |
-| 4 | 敌人像素化（Enemy/FlyEnemy/Boss） | ❌ 待做 |
+| 4 | 敌人像素化（Enemy/FlyEnemy/Boss） | ✅ 完成 (Boss) / ❌ 待做 (Enemy/FlyEnemy) |
 | 5 | 特效+菜单抛光 | ❌ 待做 |
 
 ### 11.2 关键文件
@@ -872,6 +872,8 @@ var LEVEL_CONFIGS = {
 | `pixel_config.gd` | 全局视口 NEAREST 滤波配置 |
 | `pixel_lib.gd` | 像素图工具库（`create_texture` / `create_anim_textures` / `setup_animated_sprite` / `fill_circle` / `fill_rect`）|
 | `pixel_background.gd` | 像素背景元素生成器（月亮/大楼/云/草地/管道）|
+| `BossPixel.gd` | Boss 像素渲染器（80×60 canvas、center-relative、帧缓存、调色板常量、各状态专属表情）|
+| `bg_single.gd` | 单张 bg.jpg 视差背景（替换4层程序化生成）|
 
 ### 11.3 PixelConfig API 注意事项
 
@@ -978,6 +980,119 @@ PixelLib.setup_animated_sprite(sprite_node, animations_dict, palette)
 - ❌ Tween callback 中 `hide()` 在节点已释放时报 `Nonexistent function 'hide' in base 'Nil'`
   - 根因：场景重启后旧节点 Tween 回调执行时节点已被 `queue_free`
   - 修复：所有 `tween_callback` 统一加 `if is_instance_valid(self):` 守卫
+
+### 11.8 Phase 4 — Boss 像素化 (BossPixel.gd)
+
+#### 文件结构
+
+| 文件 | 说明 |
+|------|------|
+| `scripts/enemies/BossPixel.gd` | Boss 像素渲染器 (80×60 canvas, 帧缓存, 调色板常量) |
+| `scripts/enemies/Boss.gd` | Boss 主控 (整合 pixel_mode 切换、Sprite2D 子节点、预生成首帧) |
+| `scripts/lib/pixel_lib.gd` | 像素图工具库 (`fill_circle` / `fill_rect`) |
+
+#### BossPixel 架构
+
+- **Canvas**: 80×60 像素, center-relative 坐标系 (CX=40, CY=30)
+- **帧缓存**: 最多 80 帧, key=`{state}_{jaw_q}_{t_q}{E}{S}`, 相位 16 档
+- **调色板**: 16 个具名颜色常量 (`C_ABDO`, `C_FACE`, `C_EYE` 等)
+- **状态视觉**:
+  | 状态 | 眼睛 | 嘴 | 腿 | 特效 |
+  |------|------|-----|-----|------|
+  | DORMANT | 闭合灰线 | 闭合小口 | 蜷缩 | 蛛丝 |
+  | SKITTER | 正常圆眼+瞳孔 | 张嘴+牙 | 急速扒行 | 暗紫光环 |
+  | POUNCE/INITIAL/SKY | 正常圆眼+瞳孔 | 张嘴+牙+獠牙 | 收缩后蹬 | 暗紫光环 |
+  | CEILING_HANG | 正常圆眼+瞳孔 | 张嘴+牙 | 朝天伸展 | 蛛丝 |
+  | SKY_DROP_CRASH | 正常圆眼+瞳孔 | 张嘴+牙 | 收缩后蹬 | 红色瞄准圈 |
+  | STUNNED | X 眼 (黄色) | 张嘴+口水 | 瘫软散开 | 金星旋转 |
+  | COUNTER_SWIPE | 正常圆眼+瞳孔 | 张嘴+牙 | 前伸 | 红色闪电 |
+  | enraged | 红色 (C_EYE_E) | 正常+獠牙 | C_LEG_E 颜色 | 粉色光环 |
+
+#### 绘制流水线
+
+```
+_render()→
+  _shadow()      地面投影
+  _abdo_border() 腹部边框
+  _abdo()        腹部填充+菱形鳞纹+高光
+  _hourglass()   红色沙漏+高光条纹
+  _legs()        ×8腿 (hip→knee→claw)
+  _aura()        发光光环
+  _face()        脸基色→腮红→眼睛(3种模式)→斑点→嘴→轮廓→绿发
+  _stars/_bolt/_reticle 状态特效
+```
+
+#### Boss.gd pixel_mode 集成
+
+- `pixel_mode = true` 默认开启
+- F1 键切换 `pixel_mode`，HUD 文字提示
+- `_ready()` 预生成休眠帧 → Sprite2D.texture
+- `_physics_process()` 每帧组装 `state_info` 字典 → `_boss_pixel.generate(state_info)`
+- `_draw()` 中 `if pixel_mode: return` 跳过矢量绘制
+- Sprite 缩放 1.5x (80×60 → ~120×90 显示尺寸)
+- `centered=false`, position=(-BPW/2, -BPH/2) 对准节点原点
+
+### 11.9 单张 bg.jpg 视差背景 (替换4层程序化)
+
+#### 背景
+
+原先使用 `GothamBgLayers` 4 层程序化生成纹理 (夜空/远景/中景/近景) + ParallaxBackground。
+现改为 `bg_single.gd` 加载 `assets/bg.jpg`（1168×784 AI 生成哥谭夜景）作为单张视差背景。
+
+#### 变更
+
+- 新建 `scripts/lib/bg_single.gd` — 单层 ParallaxBackground, motion_scale (0.03, 0.01)
+- `Game.gd` `_create_world()`: 4层 ParallaxBackground → `BgSingle.create(vp.x, vp.y)`
+- `assets/bg.jpg` 复制自 `D:/0708ribao/images/bg.jpg`
+- 等比缩放填满 1152×648 视口 (crop 顶部/底部)
+
+### 11.10 视觉验收流程 — Gemini 3.5 Flash Lite 截图分析
+
+#### 目的
+每次像素化/视觉相关修改后，不能只依赖代码走查。必须截取游戏实际渲染画面，交给 Gemini 3.5 Flash Lite 模型分析，确认视觉效果符合预期，才能标记完成。
+
+#### 流程
+
+```
+修改代码 → TestRunner 自动试玩(800帧) → 截取关键画面
+  → 调用 Gemini 3.5 Flash Lite 分析: 
+     - Boss 各状态表情/姿势是否正确
+     - 背景渲染完整性
+     - 色彩/像素风格一致性
+     - 动画流畅度
+  → Gemini 给出 pass/fail + 具体问题
+  → 若 fail → 根据反馈修改 → 重新截图验收
+  → 若 pass → 标记完成
+```
+
+#### 关键检查点
+
+| 检查项 | 说明 |
+|--------|------|
+| Boss DORMANT | 闭合眼、蜷缩腿、蛛丝、无光环 |
+| Boss STUNNED | X 眼、张嘴口水、瘫腿、金星、黄光环 |
+| Boss enraged | 红眼、红腿、粉光环、腹部变红 |
+| Boss SKITTER | 正常眼、8腿扒行动画、紫光环 |
+| Boss COUNTER_SWIPE | 红色闪电特效 |
+| bg.jpg 背景 | 完整显示、无拉伸变形、视差滚动正常 |
+| 像素风格一致性 | 全部元素用 NEAREST 滤波、无模糊纹理 |
+
+#### 调用方式
+
+Gemini 3.5 Flash Lite 通过 `task()` 调用 (category=`multimodal-looker` 或直接 Gemini API)：
+
+```
+发送图片 + 文本 prompt: 
+  "分析这张游戏截图：1) Boss 的表情和姿势是否符合[当前状态]？ 
+   2) 背景 bg.jpg 是否完整显示？3) 整体的像素风格是否一致？
+   列出所有视觉问题和改进建议。"
+```
+
+#### 触发时机
+
+- 每次 BossPixel.gd 或 bg_single.gd 等视觉相关文件被修改后
+- TestRunner 试玩通过后、标记 Task 完成前
+- 不得跳过此步骤直接标记完成
 
 ---
 
@@ -1242,6 +1357,66 @@ func trigger_hit_stop(duration: float = 0.05):
 | 近战击中敌人/Boss | `add_camera_shake(6.0~10.0, 0.1~0.15)` | `trigger_hit_stop(0.04)` |
 | 落地 | `add_camera_shake(2.0, 0.08)` | — |
 | 受伤 | `add_camera_shake(5.0, 0.12)` | — |
+
+### 12.21 Boss 关键帧动画 (Keyframe Animation) 与 remove.bg 扣图工作流
+
+> **架构升级**: 从旧的纯代码/矢量 `_draw()` 与 `BossPixel.gd` 升级为 Godot 4 最主流、推荐的 **`AnimatedSprite2D` + `SpriteFrames`** 关键帧动画系统。
+
+#### 1. 工作流与 remove.bg API 扣图
+
+- **动作序列图生成**：为小丑蜘蛛 Boss 绘制生成包含 `idle` (待机), `attack` (扑击咬杀), `stunned` (砸地破防), `enraged` (狂暴二阶段) 4 大核心姿势的动作序列图。
+- **remove.bg API 自动化抠图**：
+  - 脚本：`scripts/tools/process_boss_keyframes.py`
+  - API Key: `1acZABw6JLjCPhk9qY6RFSee`
+  - 自动调用 API 并执行 **Alpha 边缘精细化净化算法 (Clean Alpha Edges)**：
+    - `Alpha < 100` 的微弱半透明噪点强行清零 (`Alpha = 0`)
+    - 边缘浅白边/浅灰噪点进行剔除，`Alpha >= 160` 实施二值化边缘强化，保证 100% 像素风干净边缘。
+- **切片与 SpriteSheet**：
+  - 产出目录：`assets/boss_anim/`
+  - 包含切分关键帧 (`idle_0~3.png`, `attack_0~3.png`, `stunned_0~3.png`, `enraged_0~3.png`) 与合并规范合图 [boss_spritesheet.png](file:///d:/godot-test-project/assets/boss_anim/boss_spritesheet.png)。
+
+#### 2. Godot 关键帧驱动与重叠消除
+
+- **`AnimatedSprite2D` 驱动**：在 `Boss.gd` `_ready()` 中动态加载 `SpriteFrames`，在 `_physics_process()` 中依据 `current_state` 与 `hp` 自动切换 `_anim_sprite.play("idle" / "attack" / "stunned" / "enraged")`，并镜像 `flip_h`。
+- **视觉重叠彻底消除**：
+  - `_pixel_sprite` 设置 `visible = false` 禁用。
+  - 重构 `Boss.gd _draw()`：删除了旧矢量 8 条蛛腿、后腹部、鬼魅面部与锯齿獠牙，只保留 **头顶动态血条**、**落地点预警锁定圈**、**眩晕金星** 与 **扫击电弧**，使 Boss 角色视觉 100% 由关键帧动画独占。
+
+#### 3. 新想法与后续规划
+
+1. **角色/小怪关键帧自动化管线**：可将 `remove.bg API` + Python 自动切片管线复用到 Player 或其他小怪的特殊技能动画制作中。
+2. **多阶段动画丰富**：未来可在 `SpriteFrames` 中补充 `boss_pounce_up` (跃起)、`boss_die` (爆裂崩溃) 等独立关键帧，进一步提升视觉张力。
+
+---
+
+### 12.22 终极动作关键帧与抠图切片黄金工作流 (Golden Keyframe & Matting Workflow Standard)
+
+> [!IMPORTANT]
+> 本章节记录项目实战验证总结出的 **最成熟、最完善的 2D 动作关键帧生成、扣图切片与贴地对齐黄金工作流**。后续新增任何角色/Boss/敌人动画必须严格遵循此规范！
+
+#### 1. 美术素材 AI 生成标准 (Asset Generation Rules)
+- **纯色扣图蓝幕 (Pure Chroma Blue Screen RGB 0,0,255)**：生成动作精灵表 (Sprite Sheet) 时，背景必须强制指定为单一、平整的纯蓝色扣图蓝幕 `RGB(0,0,255)` 或纯绿幕，确保主体与背景具有最大色彩反差。
+- **严禁地面阴影与浮空杂质 (NO Ground Shadows)**：
+  - 必须包含否定词：`ABSOLUTELY NO ground shadows, NO floor pads, NO green/dark floor blobs, NO floating particles, NO dark smoke`。
+  - 保证角色脚爪/底部完全独立干净。
+- **扁平化 2D 像素风格 (Flat 2D Pixel Art Style)**：角色采用扁平化着色，具备高精度的 2D 像素轮廓。
+
+#### 2. 切片与脚爪 Ground Baseline 贴地对齐算法 (Slicing & Ground-Snap Rules)
+- **4x4 标准矩阵切片**：包含 `idle_0~3` (待机), `attack_0~3` (扑击), `stunned_0~3` (眩晕), `enraged_0~3` (狂暴) 4 行 16 帧。
+- **最大语义连通域分割 (Largest Connected Component Matting)**：利用 OpenCV 连通域统计 (`cv2.connectedComponentsWithStats`)，仅保留连通的主躯干，100% 净空擦除脱离主体的黑色散点与气泡。
+- ** Ground Baseline 贴地对齐**：每个切片提取 Bounding Box 后，统一按 **底部 Baseline 线对齐** (`py = target_frame_size[1] - ch - 4`)。彻底消除 2D 横板游戏中角色脚部悬空或陷地的视觉 Bug。
+
+#### 3. GDScript 镜像与朝向计算公式 (Facing Formula)
+- 当动作切片源图角色默认朝右时，在 `Boss.gd` 的 `_update_keyframe_animation()` 中设定镜像计算公式为：
+  ```gdscript
+  _anim_sprite.flip_h = (facing_dir < 0.0)
+  ```
+- **玩家在左侧 (`facing_dir < 0`)**：`flip_h = true`（水平翻转朝左，迎面迎战蝙蝠侠）。
+- **玩家在右侧 (`facing_dir > 0`)**：`flip_h = false`（保持朝右，迎面迎战蝙蝠侠）。
+
+#### 4. 自动化测试与 Release 打包规程 (Test & Release Build)
+- 每次更新素材或代码后，必须通过 800 帧 `TestRunner.gd` 压测与渲染诊断。
+- 确认无误后执行打包：`--export-release "Windows Desktop" "build/GothamBatman.exe"`。
 
 ---
 

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "activeGoalId": "cbd9ab3c-43a1-49a8-bad3-4e59e487194c",
+  "goals": [
+    {
+      "id": "cbd9ab3c-43a1-49a8-bad3-4e59e487194c",
+      "title": "Continue",
+      "status": "complete",
+      "successCriteria": []
+    }
+  ]
+}

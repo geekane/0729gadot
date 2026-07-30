@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "activeGoalId": "683eb013-2d7c-4366-87e9-49577d3578b8",
+  "activeGoalId": "699b0bb9-05f3-487d-ba44-32a493def091",
   "goals": [
     {
-      "id": "683eb013-2d7c-4366-87e9-49577d3578b8",
-      "title": "Continue",
-      "status": "in_progress",
+      "id": "699b0bb9-05f3-487d-ba44-32a493def091",
+      "title": "目前所有文件都在一个目录下有点凌乱，分类整理方便把你后续持续开发",
+      "status": "complete",
       "successCriteria": []
     }
   ]

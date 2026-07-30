@@ -1,14 +1,15 @@
 {
   "version": 1,
   "goal": {
-    "id": "683eb013-2d7c-4366-87e9-49577d3578b8",
+    "id": "699b0bb9-05f3-487d-ba44-32a493def091",
     "sessionID": "ses_053714cd9ffeDDYTzJIX6HkaGw",
-    "objective": "Continue",
-    "status": "active",
+    "objective": "目前所有文件都在一个目录下有点凌乱，分类整理方便把你后续持续开发",
+    "status": "complete",
     "tokensUsed": 0,
     "timeUsedSeconds": 0,
-    "createdAt": 1785335223,
-    "updatedAt": 1785335223,
-    "lastStartedAt": 1785335223
+    "createdAt": 1785375305,
+    "updatedAt": 1785375769,
+    "lastStartedAt": 1785375305,
+    "completedAt": 1785375769
   }
 }

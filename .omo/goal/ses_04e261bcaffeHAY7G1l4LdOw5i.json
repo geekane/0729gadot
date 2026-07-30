@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "goal": {
+    "id": "cbd9ab3c-43a1-49a8-bad3-4e59e487194c",
+    "sessionID": "ses_04e261bcaffeHAY7G1l4LdOw5i",
+    "objective": "Continue",
+    "status": "complete",
+    "tokensUsed": 0,
+    "timeUsedSeconds": 0,
+    "createdAt": 1785395623,
+    "updatedAt": 1785396042,
+    "lastStartedAt": 1785395623,
+    "completedAt": 1785396042
+  }
+}

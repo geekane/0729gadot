@@ -14,10 +14,20 @@ config/name="横板过关小游戏"
 run/main_scene="res://Game.tscn"
 config/features=PackedStringArray("4.7")
 
+[autoload]
+
+SoundManager="*res://scripts/lib/SoundManager.gd"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[input]
+
+toggle_pixel={
+"events": [{"keycode": 4194321, "type": 0}]
+}
 
 [display]
 
@@ -26,4 +36,3 @@ window/size/viewport_height=648
 window/size/resizable=true
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
-
