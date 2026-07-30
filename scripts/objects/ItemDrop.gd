@@ -56,15 +56,26 @@ func _collect(player):
 		
 	var game = get_tree().current_scene
 	if item_type == "health":
-		# 恢复生命值
+		# 恢复 0.5 半颗心生命值 (最多 5 颗星/心上限)
 		if game and "lives" in game:
-			game.lives = min(game.lives + 1, 3)
-			if game.has_method("_update_lives_hud"):
-				game._update_lives_hud()
-			if game.has_method("_spawn_floating_text"):
-				game._spawn_floating_text(global_position + Vector2(0, -20), "+1 ❤️ RECOVER!", Color(1.0, 0.2, 0.3))
-			if game.has_method("_spawn_particle_burst"):
-				game._spawn_particle_burst(global_position, Color(1.0, 0.3, 0.4))
+			if game.lives < 5.0:
+				game.lives = min(game.lives + 0.5, 5.0)
+				if game.has_method("_update_lives_hud"):
+					game._update_lives_hud()
+				if game.has_method("_spawn_floating_text"):
+					game._spawn_floating_text(global_position + Vector2(0, -20), "+0.5 ❤️", Color(1.0, 0.25, 0.35))
+				if game.has_method("_spawn_particle_burst"):
+					game._spawn_particle_burst(global_position, Color(1.0, 0.3, 0.4))
+			else:
+				# 已达到 5 颗满血上限：自动转换为 +100 得分
+				if "score" in game:
+					game.score += 100
+				if game.has_method("_update_score_hud"):
+					game._update_score_hud()
+				if game.has_method("_spawn_floating_text"):
+					game._spawn_floating_text(global_position + Vector2(0, -20), "+100 💎 满血加分", Color(1.0, 0.85, 0.2))
+				if game.has_method("_spawn_particle_burst"):
+					game._spawn_particle_burst(global_position, Color(1.0, 0.85, 0.2))
 	else:
 		# 获得高分奖励 (+500 pts)
 		if game and "score" in game:

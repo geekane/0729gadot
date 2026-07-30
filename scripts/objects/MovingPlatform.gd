@@ -24,20 +24,37 @@ func _ready():
 	col.one_way_collision = true
 	col.one_way_collision_margin = 4.0  # 给 4px 容差，防止高速移动时脱离平台
 	add_child(col)
+	queue_redraw()
+
+func _draw():
+	# 🎨 蝙蝠战术科技金蓝悬浮平台 (Batman Tech Golden-Navy Floating Platform)
+	var hw = width / 2.0
+	var hh = height / 2.0
 	
-	# 视觉结构
-	var vis = ColorRect.new()
-	vis.color = Color(0.22, 0.35, 0.52) # 蓝灰色哥谭科技风格
-	vis.size = Vector2(width, height)
-	vis.position = Vector2(-width / 2.0, -height / 2.0)
-	add_child(vis)
+	# 1. 底层深钢蓝主体框架 (Dark Steel Navy Body)
+	var body_rect = Rect2(-hw, -hh, width, height)
+	draw_rect(body_rect, Color(0.14, 0.18, 0.32), true)
 	
-	# 平台顶部防滑光带
-	var top_stripe = ColorRect.new()
-	top_stripe.color = Color(0.4, 0.8, 1.0)
-	top_stripe.size = Vector2(width, 3.0)
-	top_stripe.position = Vector2(-width / 2.0, -height / 2.0)
-	add_child(top_stripe)
+	# 2. 金黄色防滑警示边框 (Tactical Gold Edge)
+	draw_rect(body_rect, Color(1.0, 0.85, 0.2), false, 2.0)
+	
+	# 3. 顶部强力天蓝荧光防滑面 (High-Visibility Cyan Top Edge)
+	draw_line(Vector2(-hw, -hh), Vector2(hw, -hh), Color(0.3, 0.92, 1.0), 3.0)
+	
+	# 4. 顶面金色战术警示斜纹
+	var stripe_count = 5
+	var step_x = width / (stripe_count + 1)
+	for i in range(stripe_count):
+		var sx = -hw + (i + 1) * step_x
+		draw_line(Vector2(sx - 4, -hh + 3), Vector2(sx + 4, -hh + 7), Color(1.0, 0.85, 0.2, 0.9), 2.0)
+		
+	# 5. 底部两侧天蓝离子推进喷气核 (Dual Cyan Energy Thrusters)
+	var left_thruster = Vector2(-hw + 14, hh + 2)
+	var right_thruster = Vector2(hw - 14, hh + 2)
+	draw_circle(left_thruster, 4.0, Color(0.2, 0.9, 1.0, 0.9))
+	draw_circle(left_thruster, 2.0, Color(1.0, 1.0, 1.0, 0.95))
+	draw_circle(right_thruster, 4.0, Color(0.2, 0.9, 1.0, 0.9))
+	draw_circle(right_thruster, 2.0, Color(1.0, 1.0, 1.0, 0.95))
 
 func _physics_process(delta):
 	time_counter += delta * move_speed

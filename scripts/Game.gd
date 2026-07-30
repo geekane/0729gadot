@@ -494,6 +494,27 @@ static func _create_pixel_icon(type: String, custom_size: Vector2 = Vector2(24, 
 				"............",
 				"............"
 			]
+		"heart_half":
+			palette = {
+				"R": Color(1.0, 0.25, 0.35),
+				"D": Color(0.28, 0.32, 0.42),
+				"L": Color(0.4, 0.45, 0.55),
+				".": Color.TRANSPARENT
+			}
+			pixels = [
+				"............",
+				"............",
+				"...RR..LL...",
+				"..RRRRDDDL..",
+				"..RRRRDDDL..",
+				"..RRRRDDDL..",
+				"...RRRDDL...",
+				"....RRDL....",
+				".....RL.....",
+				"......R.....",
+				"............",
+				"............"
+			]
 		"heart_empty":
 			palette = heart_empty_pal
 			pixels = [
@@ -936,7 +957,7 @@ func _show_level_select_dialog():
 func _start_game():
 	current_level = 1
 	score = 0
-	lives = 3
+	lives = 3.0
 	_play_sound("menu_confirm")
 	_start_level(current_level)
 
@@ -1138,11 +1159,28 @@ func _add_static_rect(x, y, w, h, color, collision_layer := 1):
 	body.position = Vector2(x, y)
 	add_child(body)
 	
+	# 🎨 靓丽哥谭战术科技画风 (亮金包边 + 顶端天蓝荧光防滑面 + 钢蓝底色)
+	var platform_color = Color(0.14, 0.18, 0.32) if collision_layer == 2 else color
 	var vis = ColorRect.new()
-	vis.color = color
+	vis.color = platform_color
 	vis.size = Vector2(w, h)
 	vis.position = Vector2(-w/2.0, -h/2.0)
 	body.add_child(vis)
+	
+	if collision_layer == 2:
+		var gold_border = ReferenceRect.new()
+		gold_border.border_color = Color(1.0, 0.85, 0.2)
+		gold_border.editor_only = false
+		gold_border.border_width = 2.0
+		gold_border.size = Vector2(w, h)
+		gold_border.position = Vector2(-w/2.0, -h/2.0)
+		body.add_child(gold_border)
+		
+		var top_line = ColorRect.new()
+		top_line.color = Color(0.3, 0.92, 1.0)
+		top_line.size = Vector2(w, 3.0)
+		top_line.position = Vector2(-w/2.0, -h/2.0)
+		body.add_child(top_line)
 
 func _add_invisible_barrier(x: float, y: float, w: float, h: float):
 	"""创建完全隐形的物理阻挡墙 (无紫色或线条绘制，视觉干净干净)"""
@@ -1281,13 +1319,13 @@ func _create_hud():
 	style.shadow_color = Color(0, 0, 0, 0.3)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.position = Vector2(16, 16)
-	panel.size = Vector2(570, 52)
+	panel.size = Vector2(640, 52)
 	layer.add_child(panel)
 	
 	var hbox = HBoxContainer.new()
 	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hbox.position = Vector2(12, 12)
-	hbox.size = Vector2(546, 28)
+	hbox.size = Vector2(616, 28)
 	hbox.add_theme_constant_override("separation", 18)
 	panel.add_child(hbox)
 	
@@ -1320,7 +1358,7 @@ func _create_hud():
 	level_label = Label.new()
 	level_label.name = "LevelLabel"
 	level_label.text = "Level %d/5" % current_level
-	level_label.position = Vector2(215, 12)
+	level_label.position = Vector2(265, 12)
 	level_label.add_theme_font_size_override("font_size", 17)
 	level_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 	panel.add_child(level_label)
@@ -1328,7 +1366,7 @@ func _create_hud():
 	# 最高分（像素皇冠图标 + 数字）
 	var hs_box = HBoxContainer.new()
 	hs_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hs_box.position = Vector2(345, 12)
+	hs_box.position = Vector2(395, 12)
 	hs_box.size = Vector2(180, 28)
 	hs_box.add_theme_constant_override("separation", 4)
 	hs_box.add_child(_create_pixel_icon("crown", Vector2(16, 16)))
@@ -1343,9 +1381,9 @@ func _create_hud():
 	# 蝙蝠飞镖技能按键提示
 	var skill_label = Label.new()
 	skill_label.name = "SkillLabel"
-	skill_label.text = "左键: 飞镖"
-	skill_label.position = Vector2(430, 12)
-	skill_label.add_theme_font_size_override("font_size", 16)
+	skill_label.text = "左键:飞镖 Shift:翻滚"
+	skill_label.position = Vector2(495, 12)
+	skill_label.add_theme_font_size_override("font_size", 15)
 	skill_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	skill_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	skill_label.add_theme_constant_override("outline_size", 2)
@@ -1374,9 +1412,18 @@ func _update_lives_hud():
 		hearts_box.add_child(god_label)
 		return
 		
-	for i in range(3):
-		var heart_type = "heart_full" if i < lives else "heart_empty"
-		hearts_box.add_child(_create_pixel_icon(heart_type, Vector2(24, 24)))
+	# 支持最多 5 颗星/心容量上限 (Max 5 Hearts Container)
+	var max_hearts = 5
+	var cur_hp = clamp(lives, 0.0, 5.0)
+	for i in range(max_hearts):
+		var heart_type = "heart_empty"
+		if cur_hp >= i + 1.0:
+			heart_type = "heart_full"
+		elif cur_hp >= i + 0.5:
+			heart_type = "heart_half"
+		else:
+			heart_type = "heart_empty"
+		hearts_box.add_child(_create_pixel_icon(heart_type, Vector2(22, 22)))
 
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
