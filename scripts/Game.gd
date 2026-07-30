@@ -1879,11 +1879,9 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	_overlay.add_child(bg)
 
-	# ── 居中主面板 (560x420 / 战败380) ──
+	# ── 居中主面板 (560x380) ──
 	var panel_w = 560.0
-	var panel_h = 420.0
-	if state == GameState.GAME_OVER:
-		panel_h = 380.0 # 🎯 战败面板高度 380px，下布局更加舒展
+	var panel_h = 380.0 # 🎯 通关与战败面板统一 380px 极简高端尺寸
 
 	var panel_x = (1152.0 - panel_w) / 2.0
 	var panel_y = (648.0 - panel_h) / 2.0
@@ -1912,18 +1910,18 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 
 	# ── 1. 【重磅主角视觉】精美全中文蓝幕抠图艺术大字 Banner ──
 	var banner_tex_path = ""
-	var bw = 220.0
-	var bh = 162.0
+	var bw = 360.0
+	var bh = 265.0
 	var banner_y = 10.0
 	
 	if state == GameState.WON:
 		banner_tex_path = "res://assets/ui/chinese_victory_banner_clean.png"
-		bw = 220.0
-		bh = 162.0 # 220x162
-		banner_y = 10.0
+		bw = 360.0  # 🎯 巨幅通关艺术 Banner 360x265 独占视觉中心
+		bh = 265.0
+		banner_y = 8.0
 	elif state == GameState.GAME_OVER:
 		banner_tex_path = "res://assets/ui/chinese_gameover_banner_clean.png"
-		bw = 420.0  # 🎯 巨幅霸气大尺寸 420x223
+		bw = 420.0  # 🎯 巨幅霸气战败 Banner 420x223
 		bh = 223.0
 		banner_y = 15.0
 
@@ -1941,64 +1939,7 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 		pulse_tw.tween_property(b_tr, "modulate:a", 0.75, 0.5).set_ease(Tween.EASE_IN_OUT)
 		pulse_tw.tween_property(b_tr, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
 
-	if state == GameState.WON:
-		overlay_label = Label.new()
-		overlay_label.text = title_text
-		overlay_label.add_theme_font_size_override("font_size", 20)
-		overlay_label.add_theme_color_override("font_color", title_color)
-		overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		overlay_label.add_theme_constant_override("outline_size", 3)
-		overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		overlay_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		overlay_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		overlay_label.position = Vector2(0, 175)
-		overlay_label.size = Vector2(panel_w, 25)
-		overlay_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(overlay_label)
-
-	# ── 3. 通关星级评价系统 ──
-	if state == GameState.WON:
-		var rating = _calc_star_rating()
-		var stars = rating["stars"]
-		var star_tex_path = "res://assets/ui/star_rating_%d.png" % stars
-		if ResourceLoader.exists(star_tex_path):
-			var star_tex = load(star_tex_path)
-			var sw = 160.0
-			var sh = 50.0
-			var str_tr = _make_anchored_tex(star_tex, sw, sh)
-			str_tr.position = Vector2((panel_w - sw) / 2.0, 205)
-			str_tr.pivot_offset = Vector2(sw / 2.0, sh / 2.0)
-			panel.add_child(str_tr)
-
-			# 星星平滑缓动弹入
-			str_tr.scale = Vector2(0.3, 0.3)
-			str_tr.modulate.a = 0.0
-			var star_tw = create_tween().set_parallel(true)
-			star_tw.tween_property(str_tr, "scale", Vector2(1.0, 1.0), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			star_tw.tween_property(str_tr, "modulate:a", 1.0, 0.25)
-
-		# 星级评语
-		var star_label = Label.new()
-		star_label.text = rating["desc"]
-		star_label.add_theme_font_size_override("font_size", 16)
-		star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3))
-		star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		star_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		star_label.position = Vector2(0, 260)
-		star_label.size = Vector2(panel_w, 25)
-		star_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(star_label)
-	elif state == GameState.GAME_OVER:
-		var defeat_label = Label.new()
-		defeat_label.text = "🦇 哥谭市需要你，重新整装出发！"
-		defeat_label.add_theme_font_size_override("font_size", 16)
-		defeat_label.add_theme_color_override("font_color", Color(0.95, 0.75, 0.3))
-		defeat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		defeat_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		defeat_label.position = Vector2(0, 220)
-		defeat_label.size = Vector2(panel_w, 30)
-		defeat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(defeat_label)
+	# ── 2. 干净清爽，不渲染多余文字与星级 ──
 
 	# ── 4. 得分与最高纪录 (Y: 300 ~ 335) ──
 	var is_new_record = false

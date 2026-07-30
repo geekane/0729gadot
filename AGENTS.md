@@ -13,6 +13,9 @@
 > 2. **修改后自动试玩**：每次修改代码后，必须通过自动化测试脚手架 (`TestRunner.gd`) 进行实际游玩测试与逐帧渲染快照检查。
 > 3. **⚠️ [MUST] 确认无误后打包 — 禁止跳过！** 自动化测试通过后，**立即**（在同一会话内）执行 `--export-release` 打包生成 `.exe`。如果 commit 被 pre-commit hook 拦住，请先打包再提交。
 > 4. **保持纯 GDScript 代码架构**：所有节点继续使用 GDScript 动态创建，不打破纯代码设计理念。
+> 5. **结算面板极简高奢排版**：通关/战败界面只保留独占巨幅艺术 Banner (`chinese_victory_banner_clean.png` 360x265 / `chinese_gameover_banner_clean.png` 420x223)，彻底取消三颗星与多余重叠标题，面板高度统一设为 380px。
+> 6. **弹反子弹一击必杀机制**：`FlyEnemyBullet` 弹反后判定半径扩大至 32px，速度翻 2.5 倍；反弹命中 `FlyEnemy` 或 `Enemy` 时强制触发 `hit_by_deflected_bullet()` 100% 直接爆炸杀灭，并伴随 `add_camera_shake(16.0, 0.25)` 强烈震屏！
+> 7. **屏幕绝对中央纯中文打击反馈**：彻底剔除 Emoji，屏幕正中央弹出 38~44pt 纯正超大号发光中文艺术字（“命 中 ！”、“暴 击 ！！”、“受 伤 ！”、“弹 反 斩 杀 ！！”），配合 `add_camera_shake()` 冲击感！
 
 ---
 

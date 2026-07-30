@@ -88,12 +88,16 @@ func _execute_deflect_kill(target: Node):
 			game._spawn_particle_burst(global_position, Color(0.2, 1.0, 0.9))
 			game._spawn_particle_burst(global_position, Color(1.0, 0.8, 0.2))
 	
-	if target.has_method("_on_stomped"):
+	if target.has_method("hit_by_deflected_bullet"):
+		target.hit_by_deflected_bullet()
+	elif target.has_method("hit_by_melee"):
+		target.hit_by_melee(100)
+	elif target.has_method("_on_stomped"):
 		target._on_stomped()
 	elif target.has_method("hit_by_batarang"):
-		target.hit_by_batarang()
+		target.hit_by_batarang(100)
 	elif target.has_method("take_damage"):
-		target.take_damage(3)
+		target.take_damage(5)
 		
 	_spawn_burst()
 	queue_free()

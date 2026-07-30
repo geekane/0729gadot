@@ -108,6 +108,7 @@ var anim_time = 0.0
 var shoot_timer = 0.0
 var sprite: Sprite2D
 var drone_textures = []
+var hp = 10
 
 func _ready():
 	add_to_group("enemies")
@@ -213,7 +214,12 @@ func stomp():
 	tween.tween_property(self, "modulate:a", 0.0, 0.25)
 	tween.chain().tween_callback(queue_free)
 	
-var hp = 10
+func hit_by_deflected_bullet():
+	"""被玩家近战弹反的子弹击中：100% 一击必杀直接爆炸！"""
+	if not alive:
+		return
+	hp = 0
+	_die_fly_enemy()
 
 func hit_by_melee(damage: int = 10):
 	"""被近战斩击命中 (10 伤害，一击秒杀)"""
