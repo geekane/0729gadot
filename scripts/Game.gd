@@ -1733,15 +1733,39 @@ func _show_overlay(title_text, title_color, hint_text):
 	
 	overlay_label = Label.new()
 	overlay_label.text = title_text
-	overlay_label.add_theme_font_size_override("font_size", 36)
+	overlay_label.add_theme_font_size_override("font_size", 32)
 	overlay_label.add_theme_color_override("font_color", title_color)
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	overlay_label.add_theme_constant_override("outline_size", 5)
+	overlay_label.add_theme_constant_override("outline_size", 4)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	overlay_label.position = Vector2(0, 25)
-	overlay_label.size = Vector2(500, 60)
+	overlay_label.position = Vector2(0, 35)
+	overlay_label.size = Vector2(500, 50)
 	panel.add_child(overlay_label)
+
+	# 🏆/💀 全中文蓝幕抠图通关 Banner 艺术大字 (画面中央呼吸闪烁与微弹跳 Loop 动画)
+	var banner_tex_path = "res://assets/ui/chinese_victory_logo.png" if state == GameState.WON else "res://assets/ui/chinese_gameover_logo.png"
+	if ResourceLoader.exists(banner_tex_path):
+		var b_tex = load(banner_tex_path)
+		var b_tr = TextureRect.new()
+		b_tr.texture = b_tex
+		var bw = 440.0
+		var bh = 145.0
+		b_tr.size = Vector2(bw, bh)
+		b_tr.position = Vector2((500.0 - bw) / 2.0, -85.0)
+		b_tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		b_tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		b_tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		b_tr.pivot_offset = Vector2(bw / 2.0, bh / 2.0)
+		
+		# 0.6 秒呼吸闪烁与微缩放 Loop 动画
+		var pulse_tween = create_tween().set_loops().set_parallel(true)
+		pulse_tween.tween_property(b_tr, "modulate:a", 1.0, 0.6).set_ease(Tween.EASE_IN_OUT)
+		pulse_tween.tween_property(b_tr, "modulate:a", 0.45, 0.6).set_ease(Tween.EASE_IN_OUT)
+		pulse_tween.tween_property(b_tr, "scale", Vector2(1.08, 1.08), 0.6).set_ease(Tween.EASE_IN_OUT)
+		pulse_tween.tween_property(b_tr, "scale", Vector2(0.95, 0.95), 0.6).set_ease(Tween.EASE_IN_OUT)
+		
+		panel.add_child(b_tr)
 	
 	var is_new_record = false
 	if score > high_score:

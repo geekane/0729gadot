@@ -1514,6 +1514,31 @@ func trigger_hit_stop(duration: float = 0.05):
 
 ---
 
+### 12.26 蓝幕抠图通关/胜利 Banner 艺术大字与呼吸闪烁基准 (Victory Blue-Screen Matting Banner Standard)
+
+> [!IMPORTANT]
+> 本章节记录实战总结出的 **全中文通关/胜利艺术大字生成、蓝幕抠图** 以及 **画面中央呼吸闪烁 Loop 动画标准**。
+
+#### 1. 蓝幕大字生成与 Python 抠图管线 (`slice_victory_ui.py`)
+- **生成规则**：设计背景纯蓝幕 `RGB(0,0,255)` 的全中文艺术 Banner 图（“**哥谭胜利：英雄归来**” 与 “**遗憾战败：重整旗鼓**”），绝不混入英文单词。
+- **Python HSV 抠图切片**：运行 `scripts/tools/slice_victory_ui.py`，扣除蓝幕背景导出透明 PNG 贴图：
+  - `assets/ui/chinese_victory_logo.png`
+  - `assets/ui/chinese_gameover_logo.png`
+
+#### 2. Godot 画面中央 Banner 挂载与呼吸闪烁 Loop 动画 (`Game.gd`)
+- **中央 Pivot 绑定**：`b_tr.pivot_offset = Vector2(bw / 2.0, bh / 2.0)`。
+- **0.6 秒呼吸闪烁与微弹跳 Loop Tween**：
+  ```gdscript
+  var pulse_tween = create_tween().set_loops().set_parallel(true)
+  pulse_tween.tween_property(b_tr, "modulate:a", 1.0, 0.6).set_ease(Tween.EASE_IN_OUT)
+  pulse_tween.tween_property(b_tr, "modulate:a", 0.45, 0.6).set_ease(Tween.EASE_IN_OUT)
+  pulse_tween.tween_property(b_tr, "scale", Vector2(1.08, 1.08), 0.6).set_ease(Tween.EASE_IN_OUT)
+  pulse_tween.tween_property(b_tr, "scale", Vector2(0.95, 0.95), 0.6).set_ease(Tween.EASE_IN_OUT)
+  ```
+
+---
+
+
 
 
 
