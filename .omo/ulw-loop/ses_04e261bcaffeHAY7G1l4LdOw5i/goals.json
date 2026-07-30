@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "activeGoalId": "cbd9ab3c-43a1-49a8-bad3-4e59e487194c",
+  "activeGoalId": "2847c240-98c9-42b3-9b25-a87a226587cf",
   "goals": [
     {
-      "id": "cbd9ab3c-43a1-49a8-bad3-4e59e487194c",
-      "title": "Continue",
-      "status": "complete",
+      "id": "2847c240-98c9-42b3-9b25-a87a226587cf",
+      "title": "纯分析 这个game gd文件太庞大了，适合解耦吗 能解耦吗？",
+      "status": "in_progress",
       "successCriteria": []
     }
   ]
