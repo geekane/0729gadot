@@ -240,6 +240,48 @@ const LEVEL_CONFIGS = {
 	}
 }
 
+# ─── BGM 音乐系统 (BGM Audio System) ───────────────
+var bgm_player: AudioStreamPlayer = null
+var current_bgm_track: String = ""
+
+func _setup_bgm_system():
+	"""初始化全局 BGM 播放系统"""
+	if bgm_player and is_instance_valid(bgm_player):
+		return
+	bgm_player = AudioStreamPlayer.new()
+	bgm_player.name = "GlobalBGMPlayer"
+	bgm_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	bgm_player.bus = "Master"
+	add_child(bgm_player)
+
+func _play_bgm(track_path: String, fade_duration: float = 0.5):
+	"""优雅平滑播放与切换关卡 / Boss 战音轨迹 (bgm.mp3 / boss.mp3)"""
+	_setup_bgm_system()
+	if current_bgm_track == track_path and bgm_player.playing:
+		return
+		
+	if not ResourceLoader.exists(track_path):
+		print("[BGM System] Track not found: ", track_path)
+		return
+		
+	current_bgm_track = track_path
+	var stream = load(track_path)
+	
+	if bgm_player.playing and fade_duration > 0.0:
+		var fade_tween = create_tween()
+		fade_tween.tween_property(bgm_player, "volume_db", -40.0, fade_duration * 0.5)
+		fade_tween.chain().tween_callback(func():
+			bgm_player.stream = stream
+			bgm_player.volume_db = -40.0
+			bgm_player.play()
+			var in_tween = create_tween()
+			in_tween.tween_property(bgm_player, "volume_db", -4.0, fade_duration * 0.5)
+		)
+	else:
+		bgm_player.stream = stream
+		bgm_player.volume_db = -4.0
+		bgm_player.play()
+
 # ─── 状态管理 ──────────────────────────────────────
 
 func _ready():
@@ -248,6 +290,7 @@ func _ready():
 	PixelConfig.apply(get_viewport())
 	RenderingServer.set_default_clear_color(Color(0.08, 0.1, 0.2, 1.0))
 	_load_high_score()
+	_setup_bgm_system()
 	_create_menu()
 
 var shake_intensity = 0.0
@@ -542,6 +585,7 @@ func _create_menu():
 	get_tree().paused = false
 	blink_timer = 0.0
 	blink_visible = true
+	_play_bgm("res://bgm.mp3")
 	
 	var bg = ColorRect.new()
 	bg.color = Color(0.08, 0.1, 0.22, 1.0)
@@ -902,6 +946,7 @@ func _start_level(level_idx: int):
 	is_paused = false
 	boss_arena_locked = false
 	camera_fixed_boss_arena = false
+	_play_bgm("res://bgm.mp3")
 	if get_tree():
 		get_tree().paused = false
 	blink_timer = 0.0
@@ -1118,6 +1163,9 @@ func _lock_boss_arena():
 	boss_arena_locked = true
 	camera_fixed_boss_arena = true # 🔒 镜头平滑运镜居中至 Vector2(4520, 324)
 	
+	# 🎵 平滑切换至 Boss 决战热血 BGM (boss.mp3)
+	_play_bgm("res://boss.mp3", 0.6)
+	
 	if camera and is_instance_valid(camera):
 		camera.limit_left = 4040
 		camera.limit_right = 5010
@@ -1135,32 +1183,10 @@ func _lock_boss_arena():
 	boss_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(boss_overlay)
 	
-	# 🎭 Boss 肖像背景层 (boss.jpg 处理为 192x288 像素纹理，作为 Boss 区宏大背景)
-	var boss_portrait = Sprite2D.new()
-	boss_portrait.name = "BossPortrait"
-	boss_portrait.texture = preload("res://scripts/lib/gotham_bg_layers.gd").create_boss_portrait_texture()
-	boss_portrait.scale = Vector2(2.5, 2.5)  # 放大至 480x720
-	boss_portrait.position = Vector2(4520, 100)  # 居中于 Boss 战场
-	boss_portrait.modulate = Color(1, 1, 1, 0.0)  # 从完全透明开始
-	boss_portrait.z_index = -1  # 在玩家和地面之后
-	add_child(boss_portrait)
-	
 	# 渐入 + 脉冲呼吸动画 (1.5s 内从透明到血色)
 	var overlay_tween = create_tween().set_parallel(true)
-	overlay_tween.tween_property(boss_overlay, "color:a", 0.22, 1.5).set_ease(Tween.EASE_OUT)
-	overlay_tween.tween_property(boss_overlay, "color:r", 0.45, 1.5).set_ease(Tween.EASE_OUT)
-	overlay_tween.tween_property(boss_overlay, "color:g", 0.02, 1.5).set_ease(Tween.EASE_OUT)
-	overlay_tween.tween_property(boss_portrait, "modulate:a", 0.25, 1.5).set_ease(Tween.EASE_OUT)
-	# 持续脉冲动画 - 血色微弱呼吸
-	var pulse_tween = create_tween().set_loops().set_parallel(true)
-	pulse_tween.tween_property(boss_overlay, "color:a", 0.28, 3.2).set_ease(Tween.EASE_IN_OUT)
-	pulse_tween.tween_property(boss_overlay, "color:a", 0.18, 3.2).set_ease(Tween.EASE_IN_OUT)
-	pulse_tween.tween_property(boss_overlay, "color:r", 0.5, 3.2).set_ease(Tween.EASE_IN_OUT)
-	pulse_tween.tween_property(boss_overlay, "color:r", 0.4, 3.2).set_ease(Tween.EASE_IN_OUT)
-	# 肖像呼吸 (alpha 0.20~0.30)
-	pulse_tween.tween_property(boss_portrait, "modulate:a", 0.30, 4.0).set_ease(Tween.EASE_IN_OUT)
-	pulse_tween.tween_property(boss_portrait, "modulate:a", 0.20, 4.0).set_ease(Tween.EASE_IN_OUT)
-	_boss_portrait_tween = pulse_tween  # 保存引用用于击败后清理
+	overlay_tween.tween_property(boss_overlay, "color:a", 0.18, 1.5).set_ease(Tween.EASE_OUT)
+	overlay_tween.tween_property(boss_overlay, "color:r", 0.35, 1.5).set_ease(Tween.EASE_OUT)
 	
 	# 🧹 彻底动态清理 Boss 战场及周边区域 (x >= 3500) 的所有普通小怪与飞行无人机
 	var enemies = get_tree().get_nodes_in_group("enemies")

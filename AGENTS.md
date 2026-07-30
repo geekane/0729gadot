@@ -1465,4 +1465,32 @@ func trigger_hit_stop(duration: float = 0.05):
 
 ---
 
+### 12.24 BGM 动态音轨系统与极速无敌翻滚基准 (BGM Audio System & Dodge Roll Standard)
+
+> [!IMPORTANT]
+> 本章节记录实战总结出的 **全局 BGM 动态淡入淡出音轨系统** 以及 **Player 极速无敌残影翻滚** 标准。
+
+#### 1. 全局 BGM 动态音轨淡入淡出系统 (`Game.gd`)
+- **根目录音频约定**：
+  - `res://bgm.mp3`：常规关卡与主菜单通用 BGM。
+  - `res://boss.mp3`：Level 5 小丑 Boss 决战热血 BGM。
+- **动态平滑淡入淡出切换 (`_play_bgm`)**：
+  - 音频播放器设置 `process_mode = Node.PROCESS_MODE_ALWAYS`，保证游戏暂停时音轨不中断。
+  - 音轨切换时通过 Tween 实现 0.5s 平滑淡出 (-40dB) 与淡入 (-4dB) 过渡。
+  - 进入 Level 5 决战竞技场 (`_lock_boss_arena()`) 时，平滑淡出常规 BGM，并激动切入 `res://boss.mp3`。
+- **纯净背景与移除残影**：
+  - 彻底禁弃夜空中的 Boss 半透明肖像残影 `boss_portrait`，保留哥谭纯净沉稳的夜景天际线与血色大楼投影。
+
+#### 2. Player 极速无敌残影翻滚闪避 (Dodge Roll Standard)
+- **快捷键**：支持按键盘 **`Shift` 键**、**`S` 键**、**`↓` 下方向键** 或 **`L` 键** 随时触发。
+- **数值与无敌帧**：
+  - 冲刺速度：`850.0` px/s 沿当前朝向极速爆发突进。
+  - 持续时间：`0.25` 秒。
+  - 冷却时间：`0.35` 秒。
+  - 无敌状态：翻滚全过程强制维持 `invincible_timer = 0.25` 物理无敌，可无伤穿透小怪与 Boss 狂笑扑克弹幕。
+- **特效**：每 0.05 秒生成暗金蝙蝠闪避残影 `_spawn_roll_ghost()`。
+
+---
+
+
 

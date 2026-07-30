@@ -33,6 +33,15 @@ var is_melee_attacking = false   # 正在攻击中（用于绘制）
 var melee_anim_timer = 0.0       # 攻击动画计时
 const MELEE_ANIM_DURATION = 0.22 # 攻击动画持续 0.22s (使斜向大月牙弧光更震撼明显)
 const MELEE_RANGE = 115.0        # 攻击有效距离 (扩大至 115px 覆盖前方/头顶/脚下)
+# 🦇 极速无敌翻滚闪避 (Batman Shadow Dodge Roll)
+var is_rolling = false
+var roll_timer = 0.0
+var roll_cooldown_timer = 0.0
+var roll_ghost_timer = 0.0
+const ROLL_DURATION = 0.25      # 翻滚爆发持续时间 (0.25s)
+const ROLL_SPEED = 850.0        # 翻滚疾风爆发速度 (850px/s)
+const ROLL_COOLDOWN = 0.35      # 翻滚冷却时间 (0.35s)
+var roll_direction = 1.0        # 翻滚冲刺方向
 
 # 动态动画变量 (Animation Parameters)
 var anim_time = 0.0
@@ -315,6 +324,66 @@ func _input(event):
 		melee_attack()
 		get_viewport().set_input_as_handled()
 
+	# 🌀 按 Shift 键、S 键、↓ 下方向键 或 L 键 触发极速无敌翻滚 (Shadow Dodge Roll)
+	if (event is InputEventKey and event.pressed and not event.echo and \
+	   (event.keycode == KEY_SHIFT or event.keycode == KEY_S or event.keycode == KEY_DOWN or event.keycode == KEY_L or event.is_action_pressed("ui_down"))):
+		start_roll()
+		get_viewport().set_input_as_handled()
+
+func start_roll():
+	"""触发蝙蝠侠极速无敌残影翻滚闪避 (Dodge Roll)"""
+	if is_dead or input_disabled or roll_cooldown_timer > 0 or is_rolling:
+		return
+		
+	is_rolling = true
+	roll_timer = ROLL_DURATION
+	roll_cooldown_timer = ROLL_COOLDOWN
+	roll_ghost_timer = 0.0
+	roll_direction = 1.0 if facing_right else -1.0
+	
+	# 🌟 翻滚期间获得 100% 物理无敌与闪避状态
+	invincible_timer = max(invincible_timer, ROLL_DURATION + 0.05)
+	
+	if has_node("/root/SoundManager"):
+		get_node("/root/SoundManager").call("play", "cape", -4.0, 1.3)
+		
+	# 翻滚体型压低压缩姿态
+	scale = Vector2(1.4, 0.72)
+	
+	_spawn_skid_spark()
+	_spawn_roll_ghost()
+	queue_redraw()
+
+func _spawn_roll_ghost():
+	"""生成暗金蝙蝠闪避残影 (Shadow Ghost Afterimage)"""
+	var parent_world = get_parent()
+	if not parent_world:
+		return
+	var ghost = Node2D.new()
+	ghost.position = global_position
+	ghost.scale = scale
+	parent_world.add_child(ghost)
+	
+	var flip = 1.0 if facing_right else -1.0
+	# 绘制暗金风暴残影
+	ghost.draw.connect(func():
+		var pts = PackedVector2Array([
+			Vector2(-15.0 * flip, -10), Vector2(15.0 * flip, -10),
+			Vector2(20.0 * flip, 10), Vector2(-20.0 * flip, 10)
+		])
+		ghost.draw_polygon(pts, PackedColorArray([Color(1.0, 0.85, 0.2, 0.5)]))
+		ghost.draw_polyline(pts, Color(1.0, 1.0, 0.8, 0.8), 2.0)
+	)
+	ghost.queue_redraw()
+	
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(ghost, "modulate:a", 0.0, 0.22)
+	tween.tween_property(ghost, "scale", Vector2(1.6, 0.5), 0.22)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(ghost):
+			ghost.hide(); ghost.queue_free()
+	)
+
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		Input.flush_buffered_events()
@@ -512,6 +581,24 @@ func _physics_process(delta):
 		melee_anim_timer -= delta
 		if melee_anim_timer <= 0:
 			is_melee_attacking = false
+			needs_redraw = true
+	
+	# 🌀 翻滚闪避逻辑 (Shadow Dodge Roll)
+	if roll_cooldown_timer > 0:
+		roll_cooldown_timer -= delta
+		
+	if is_rolling:
+		roll_timer -= delta
+		roll_ghost_timer += delta
+		if roll_ghost_timer >= 0.05:
+			roll_ghost_timer = 0.0
+			_spawn_roll_ghost()
+			
+		velocity.x = roll_direction * ROLL_SPEED
+		invincible_timer = max(invincible_timer, 0.25)
+		
+		if roll_timer <= 0:
+			is_rolling = false
 			needs_redraw = true
 	
 	# 重力
