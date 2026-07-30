@@ -266,6 +266,8 @@ func _play_bgm(track_path: String, fade_duration: float = 0.5):
 		
 	current_bgm_track = track_path
 	var stream = load(track_path)
+	if stream is AudioStreamMP3:
+		stream.loop = true
 	
 	if bgm_player.playing and fade_duration > 0.0:
 		var fade_tween = create_tween()
@@ -601,7 +603,25 @@ static func _create_pixel_icon(type: String, custom_size: Vector2 = Vector2(24, 
 	tr.texture = tex
 	return tr
 
+func _clear_menu_ui():
+	"""彻底清理并释放主菜单涉及的所有界面节点，立刻从 SceneTree 移除 prevent same-frame rendering"""
+	var menu_node_names = ["MenuBG", "Stars", "BatSignalBeam", "MenuLogo", "MenuBGAbstract"]
+	for n_name in menu_node_names:
+		var node = get_node_or_null(n_name)
+		if node and is_instance_valid(node):
+			node.hide()
+			remove_child(node)
+			node.queue_free()
+	
+	# 遍历清除所有菜单按钮及 TextureButton (立刻 remove_child)
+	for child in get_children():
+		if child is TextureButton or (child is CanvasItem and child.name.begins_with("Menu")):
+			child.hide()
+			remove_child(child)
+			child.queue_free()
+
 func _create_menu():
+	_clear_menu_ui()
 	state = GameState.MENU
 	is_paused = false
 	get_tree().paused = false
@@ -615,17 +635,6 @@ func _create_menu():
 	bg.position = Vector2(-400, -300)
 	bg.name = "MenuBG"
 	add_child(bg)
-	
-	var stars = Node2D.new()
-	stars.name = "Stars"
-	for i in range(50):
-		var star = ColorRect.new()
-		star.color = Color(1.0, 1.0, 1.0, randf_range(0.25, 0.75))
-		var s = randf_range(2.0, 4.5)
-		star.size = Vector2(s, s)
-		star.position = Vector2(randf_range(0, 1152), randf_range(0, 648))
-		stars.add_child(star)
-	add_child(stars)
 
 	# 🌆 下一层级：抽象少色块哥谭夜景底图 (Abstract Min-Color Background)
 	if ResourceLoader.exists("res://assets/menu_bg_abstract.png"):
@@ -982,7 +991,8 @@ func _start_level(level_idx: int):
 	
 	var kids = get_children()
 	for c in kids:
-		c.queue_free()
+		if c != bgm_player:
+			c.queue_free()
 	
 	_create_world()
 	_create_player()
@@ -1428,55 +1438,111 @@ func _update_lives_hud():
 
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
+func _spawn_center_hit_text(type_key: String):
+	"""在游戏屏幕/视口正中央绝对居中弹起震撼的中文打击/暴击艺术大字 (高亮发光卡片 + 爆裂弹跳)"""
+	var layer = CanvasLayer.new()
+	layer.layer = 95
+	add_child(layer)
+
+	var pw = 240.0
+	var ph = 65.0
+	var panel = Panel.new()
+	panel.clip_contents = true
+	var style = StyleBoxFlat.new()
+	
+	var text_str = "🎯 命 中 ！"
+	var text_color = Color(0.35, 0.9, 1.0)
+	var outline_color = Color(1.0, 0.8, 0.1, 0.9)
+	var border_color = Color(0.3, 0.85, 1.0, 0.8)
+	
+	if type_key == "CRIT":
+		text_str = "💥 暴 击 ！！"
+		text_color = Color(1.0, 0.92, 0.2)
+		outline_color = Color(1.0, 0.2, 0.1, 0.95)
+		border_color = Color(1.0, 0.85, 0.2, 0.9)
+		pw = 260.0
+	elif type_key == "HURT":
+		text_str = "⚡ 受 伤 ！"
+		text_color = Color(1.0, 0.35, 0.35)
+		outline_color = Color(0.6, 0.1, 0.8, 0.9)
+		border_color = Color(1.0, 0.3, 0.3, 0.8)
+
+	style.bg_color = Color(0.06, 0.08, 0.18, 0.92)
+	style.corner_radius_top_left = 16
+	style.corner_radius_top_right = 16
+	style.corner_radius_bottom_left = 16
+	style.corner_radius_bottom_right = 16
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_color = border_color
+	style.shadow_size = 12
+	style.shadow_color = Color(0, 0, 0, 0.6)
+	panel.add_theme_stylebox_override("panel", style)
+
+	# 🎯 屏幕视口 1152x648 绝对几何居中坐标
+	var center_x = (1152.0 - pw) / 2.0
+	var center_y = (648.0 - ph) / 2.0 - 35.0  # 避开玩家角色的身体
+	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	panel.position = Vector2(center_x, center_y)
+	panel.size = Vector2(pw, ph)
+	panel.pivot_offset = Vector2(pw / 2.0, ph / 2.0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(panel)
+
+	# 文本 Label
+	var lbl = Label.new()
+	lbl.text = text_str
+	lbl.add_theme_font_size_override("font_size", 26)
+	lbl.add_theme_color_override("font_color", text_color)
+	lbl.add_theme_color_override("font_outline_color", outline_color)
+	lbl.add_theme_constant_override("outline_size", 5)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(lbl)
+
+	# 0.12s 极速爆裂弹入 + 0.35s 向上漂移淡出
+	panel.scale = Vector2(0.2, 0.2)
+	panel.modulate.a = 0.0
+
+	var tw_anim = create_tween()
+	tw_anim.set_parallel(true)
+	tw_anim.tween_property(panel, "scale", Vector2(1.3, 1.3), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw_anim.tween_property(panel, "modulate:a", 1.0, 0.1)
+	tw_anim.chain().tween_property(panel, "scale", Vector2(1.0, 1.0), 0.1)
+	tw_anim.chain().set_parallel(true)
+	tw_anim.tween_property(panel, "position:y", center_y - 30.0, 0.45).set_ease(Tween.EASE_OUT)
+	tw_anim.tween_property(panel, "modulate:a", 0.0, 0.45)
+	tw_anim.chain().tween_callback(func(): _free_safe(layer))
+
 func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
-	"""像素/全中文蓝幕抠图艺术字飘字特效 (取消纯字符串 Label，全选抠图艺术字)"""
+	"""像素/全中文蓝幕抠图艺术字飘字特效 (世界坐标飘字 + 联动屏幕中央爆发)"""
+	if text.find("-10") != -1 or text.find("CRIT") != -1:
+		_spawn_center_hit_text("CRIT")
+	elif text.find("-1") != -1 or text.find("HIT") != -1:
+		_spawn_center_hit_text("HIT")
+	elif text.find("HURT") != -1 or text.find("受击") != -1:
+		_spawn_center_hit_text("HURT")
+
 	var container = Node2D.new()
 	container.position = world_pos + Vector2(-20, -30)
 	add_child(container)
-	
-	var art_tex_path = ""
-	if text.find("-10") != -1 or text.find("CRIT") != -1:
-		art_tex_path = "res://assets/ui/hit_text_crit.png"
-	elif text.find("-1") != -1 or text.find("HIT") != -1:
-		art_tex_path = "res://assets/ui/hit_text_hit.png"
-	elif text.find("HURT") != -1 or text.find("受击") != -1:
-		art_tex_path = "res://assets/ui/hit_text_hurt.png"
 
-	if art_tex_path != "" and ResourceLoader.exists(art_tex_path):
-		var tex = load(art_tex_path)
-		var tr = TextureRect.new()
-		tr.texture = tex
-		var tw = 130.0
-		var th = 60.0
-		tr.size = Vector2(tw, th)
-		tr.position = Vector2(-tw / 2.0, -th / 2.0)
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		tr.pivot_offset = Vector2(tw / 2.0, th / 2.0)
-		container.add_child(tr)
-		
-		# 0.55s 向上浮动 + 1.25x 爆开缩放淡出 Tween
-		var tween = create_tween().set_parallel(true)
-		tween.tween_property(container, "position:y", container.position.y - 45.0, 0.55)
-		tween.tween_property(tr, "scale", Vector2(1.25, 1.25), 0.15).set_trans(Tween.TRANS_BACK)
-		tween.chain().tween_property(tr, "scale", Vector2(1.0, 1.0), 0.15)
-		tween.tween_property(tr, "modulate:a", 0.0, 0.55)
-		tween.chain().tween_callback(func(): _free_safe(container))
-	else:
-		# 常规得分飘字
-		var label = Label.new()
-		label.text = text
-		label.add_theme_font_size_override("font_size", 20)
-		label.add_theme_color_override("font_color", color)
-		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-		label.add_theme_constant_override("outline_size", 3)
-		container.add_child(label)
-		
-		var tween = create_tween().set_parallel(true)
-		tween.tween_property(container, "position:y", container.position.y - 35.0, 0.6)
-		tween.tween_property(label, "modulate:a", 0.0, 0.6)
-		tween.chain().tween_callback(func(): _free_safe(container))
+	var label = Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 3)
+	container.add_child(label)
+	
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(container, "position:y", container.position.y - 35.0, 0.6)
+	tween.tween_property(label, "modulate:a", 0.0, 0.6)
+	tween.chain().tween_callback(func(): _free_safe(container))
 
 func _spawn_execution_banner(world_pos: Vector2):
 	"""近战斩杀/击败 Boss 破空 Banner 跳出特效"""
@@ -1746,21 +1812,34 @@ func _calc_star_rating() -> int:
 	else:
 		return 1
 
+func load_texture_safe(res_path: String) -> Texture2D:
+	"""绝对安全的 Texture 加载器 — 优先 ResourceLoader，若无 .import 则降级使用 Image.load_from_file 动态生成 ImageTexture"""
+	if ResourceLoader.exists(res_path):
+		var res = load(res_path)
+		if res is Texture2D:
+			return res
+	var global_path = ProjectSettings.globalize_path(res_path)
+	if FileAccess.file_exists(global_path):
+		var img = Image.load_from_file(global_path)
+		if img and not img.is_empty():
+			return ImageTexture.create_from_image(img)
+	return null
+
 func _make_anchored_tex(tex: Texture2D, w: float, h: float) -> TextureRect:
-	"""创建一个不受 Panel 布局系统拉伸的 TextureRect (锚定左上角)"""
+	"""创建一个不受 Panel 布局系统膨胀的 TextureRect (严格受控 custom_minimum_size)"""
 	var tr = TextureRect.new()
 	tr.texture = tex
-	# ⚠️ 关键：必须禁用锚点自动拉伸，否则 Panel 子节点会被强行拉伸到父容器大小
 	tr.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	tr.custom_minimum_size = Vector2(w, h)
 	tr.size = Vector2(w, h)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
 	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return tr
 
 func _show_overlay(title_text: String, title_color: Color, hint_text: String):
-	"""全屏居中弹出结算面板 — 精美分层 UI，绝不重叠"""
+	"""全屏居中弹出结算面板 — 极具视觉冲击力的艺术 Banner + 星级评价黄金排版"""
 	if _overlay and is_instance_valid(_overlay):
 		_overlay.queue_free()
 		_overlay = null
@@ -1769,38 +1848,40 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 		pause_overlay.queue_free()
 		pause_overlay = null
 
+	_clear_menu_ui()
+
 	_overlay = CanvasLayer.new()
 	_overlay.name = "GameOverlay"
 	_overlay.layer = 100
 
-	# ── 全屏半透明暗幕 ──
+	# ── 全屏半透明暗幕 (遮挡后台) ──
 	var bg = ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.78)
+	bg.color = Color(0, 0, 0, 0.85)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	_overlay.add_child(bg)
 
-	# ── 居中主面板 (520x330) ──
-	var panel_w = 520.0
-	var panel_h = 330.0
+	# ── 居中主面板 (560x450) ──
+	var panel_w = 560.0
+	var panel_h = 450.0
 	var panel_x = (1152.0 - panel_w) / 2.0
 	var panel_y = (648.0 - panel_h) / 2.0
 
 	var panel = Panel.new()
 	panel.clip_contents = true
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.07, 0.09, 0.18, 0.96)
-	style.corner_radius_top_left = 20
-	style.corner_radius_top_right = 20
-	style.corner_radius_bottom_left = 20
-	style.corner_radius_bottom_right = 20
+	style.bg_color = Color(0.06, 0.08, 0.17, 0.97)
+	style.corner_radius_top_left = 22
+	style.corner_radius_top_right = 22
+	style.corner_radius_bottom_left = 22
+	style.corner_radius_bottom_right = 22
 	style.border_width_top = 2
 	style.border_width_bottom = 2
 	style.border_width_left = 2
 	style.border_width_right = 2
 	style.border_color = Color(1.0, 0.85, 0.2, 0.6)
-	style.shadow_size = 18
-	style.shadow_color = Color(0, 0, 0, 0.6)
+	style.shadow_size = 20
+	style.shadow_color = Color(0, 0, 0, 0.7)
 	panel.add_theme_stylebox_override("panel", style)
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	panel.position = Vector2(panel_x, panel_y)
@@ -1808,31 +1889,59 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.add_child(panel)
 
-	# ── 1. 关卡名称/通用小标题 (Y: 15 ~ 45) ──
+	# ── 1. 【重磅主角视觉】精美全中文蓝幕抠图艺术大字 Banner (Y: 10 ~ 172) ──
+	var banner_tex_path = ""
+	var bw = 220.0
+	var bh = 162.0
+	
+	if state == GameState.WON:
+		banner_tex_path = "res://assets/ui/chinese_victory_banner_clean.png"
+		bw = 220.0
+		bh = 162.0 # 完美呈现 220x162 紧凑艺术 Banner
+	elif state == GameState.GAME_OVER:
+		banner_tex_path = "res://assets/ui/chinese_gameover_banner_clean.png"
+		bw = 240.0
+		bh = 127.0 # 完美呈现 240x127 紧凑战败 Banner
+
+	var b_tex = load_texture_safe(banner_tex_path)
+	if b_tex:
+		var b_tr = _make_anchored_tex(b_tex, bw, bh)
+		b_tr.position = Vector2((panel_w - bw) / 2.0, 10)
+		b_tr.pivot_offset = Vector2(bw / 2.0, bh / 2.0)
+		panel.add_child(b_tr)
+
+		# 动感轻柔 Alpha 呼吸脉冲
+		var pulse_tw = create_tween()
+		pulse_tw.tween_property(b_tr, "modulate:a", 0.75, 0.5).set_ease(Tween.EASE_IN_OUT)
+		pulse_tw.tween_property(b_tr, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
+		pulse_tw.tween_property(b_tr, "modulate:a", 0.75, 0.5).set_ease(Tween.EASE_IN_OUT)
+		pulse_tw.tween_property(b_tr, "modulate:a", 1.0, 0.5).set_ease(Tween.EASE_IN_OUT)
+
+	# ── 2. 关卡小标题 (Y: 185 ~ 210) ──
 	overlay_label = Label.new()
 	overlay_label.text = title_text
-	overlay_label.add_theme_font_size_override("font_size", 22)
+	overlay_label.add_theme_font_size_override("font_size", 20)
 	overlay_label.add_theme_color_override("font_color", title_color)
 	overlay_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	overlay_label.add_theme_constant_override("outline_size", 4)
+	overlay_label.add_theme_constant_override("outline_size", 3)
 	overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	overlay_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	overlay_label.position = Vector2(0, 15)
-	overlay_label.size = Vector2(panel_w, 35)
+	overlay_label.position = Vector2(0, 175)
+	overlay_label.size = Vector2(panel_w, 25)
 	overlay_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(overlay_label)
 
-	# ── 2. 星级评价 / 战败提示 (Y: 55 ~ 140) ──
+	# ── 3. 星级评价 / 战败提示 (Y: 210 ~ 290) ──
 	if state == GameState.WON:
 		var stars = _calc_star_rating()
 		var star_tex_path = "res://assets/ui/star_rating_%d.png" % stars
 		if ResourceLoader.exists(star_tex_path):
 			var star_tex = load(star_tex_path)
-			var sw = 180.0
-			var sh = 60.0
+			var sw = 160.0
+			var sh = 50.0
 			var str_tr = _make_anchored_tex(star_tex, sw, sh)
-			str_tr.position = Vector2((panel_w - sw) / 2.0, 55)
+			str_tr.position = Vector2((panel_w - sw) / 2.0, 205)
 			str_tr.pivot_offset = Vector2(sw / 2.0, sh / 2.0)
 			panel.add_child(str_tr)
 
@@ -1843,7 +1952,7 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 			star_tw.tween_property(str_tr, "scale", Vector2(1.0, 1.0), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			star_tw.tween_property(str_tr, "modulate:a", 1.0, 0.25)
 
-		# 星级评语 (微调 Y 轴留出呼吸感)
+		# 星级评语
 		var star_label = Label.new()
 		var star_texts = ["", "★ 勉强过关", "★★ 表现不错", "★★★ 完美通关！"]
 		star_label.text = star_texts[stars]
@@ -1851,7 +1960,7 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 		star_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3))
 		star_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		star_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		star_label.position = Vector2(0, 126)
+		star_label.position = Vector2(0, 260)
 		star_label.size = Vector2(panel_w, 25)
 		star_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(star_label)
@@ -1859,15 +1968,15 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 		var defeat_label = Label.new()
 		defeat_label.text = "🦇 哥谭市需要你，重新整装出发！"
 		defeat_label.add_theme_font_size_override("font_size", 16)
-		defeat_label.add_theme_color_override("font_color", Color(0.9, 0.7, 0.3))
+		defeat_label.add_theme_color_override("font_color", Color(0.95, 0.75, 0.3))
 		defeat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		defeat_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		defeat_label.position = Vector2(0, 95)
+		defeat_label.position = Vector2(0, 220)
 		defeat_label.size = Vector2(panel_w, 30)
 		defeat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(defeat_label)
 
-	# ── 3. 得分与最高纪录 (Y: 165 ~ 205) ──
+	# ── 4. 得分与最高纪录 (Y: 300 ~ 335) ──
 	var is_new_record = false
 	if score > high_score:
 		high_score = score
@@ -1876,16 +1985,16 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 
 	var score_info = Label.new()
 	score_info.text = "累计得分: " + str(score) + ("  (★ 刷新最高纪录!)" if is_new_record else "  (最高: " + str(high_score) + ")")
-	score_info.add_theme_font_size_override("font_size", 18)
+	score_info.add_theme_font_size_override("font_size", 17)
 	score_info.add_theme_color_override("font_color", Color(1.0, 0.88, 0.3) if is_new_record else Color(0.85, 0.9, 1.0))
 	score_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_info.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	score_info.position = Vector2(0, 168)
+	score_info.position = Vector2(0, 305)
 	score_info.size = Vector2(panel_w, 30)
 	score_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(score_info)
 
-	# ── 4. 底部闪烁提示 (Y: 265 ~ 305) ──
+	# ── 5. 底部按键提示 (Y: 385 ~ 425) ──
 	overlay_hint = Label.new()
 	overlay_hint.text = hint_text
 	overlay_hint.add_theme_font_size_override("font_size", 18)
@@ -1894,7 +2003,7 @@ func _show_overlay(title_text: String, title_color: Color, hint_text: String):
 	overlay_hint.add_theme_constant_override("outline_size", 3)
 	overlay_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	overlay_hint.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	overlay_hint.position = Vector2(0, panel_h - 50)
+	overlay_hint.position = Vector2(0, panel_h - 48)
 	overlay_hint.size = Vector2(panel_w, 35)
 	overlay_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(overlay_hint)
