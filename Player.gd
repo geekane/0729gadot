@@ -34,6 +34,14 @@ var melee_anim_timer = 0.0       # 攻击动画计时
 const MELEE_ANIM_DURATION = 0.22 # 攻击动画持续 0.22s (使斜向大月牙弧光更震撼明显)
 const MELEE_RANGE = 115.0        # 攻击有效距离 (扩大至 115px 覆盖前方/头顶/脚下)
 
+# Shift 战术翻滚闪避 (Dodge Roll)
+var is_rolling = false
+var roll_timer = 0.0
+const ROLL_DURATION = 0.35       # 翻滚持续时间 0.35s
+var roll_cooldown_timer = 0.0
+const ROLL_COOLDOWN = 0.45       # 冷却时间 0.45s
+var roll_dir = 1.0               # 翻滚冲刺方向
+
 # 动态动画变量 (Animation Parameters)
 var anim_time = 0.0
 var facing_right = true
@@ -66,6 +74,17 @@ func _ready():
 	queue_redraw()
 
 func _draw():
+	if is_rolling:
+		var roll_prog = 1.0 - (roll_timer / ROLL_DURATION)
+		var roll_angle = roll_prog * PI * 2.0 * roll_dir
+		draw_set_transform(Vector2(0, 2), roll_angle, Vector2(1.0, 1.0))
+		draw_circle(Vector2.ZERO, 13.0, Color(0.12, 0.16, 0.28))
+		draw_circle(Vector2.ZERO, 11.0, Color(0.06, 0.06, 0.12))
+		draw_arc(Vector2.ZERO, 9.0, 0, PI * 2.0, 16, Color(1.0, 0.85, 0.2), 3.0)
+		draw_circle(Vector2(5.0 * roll_dir, -2.0), 3.0, Color(1.0, 0.9, 0.2))
+		draw_arc(Vector2.ZERO, 15.0 + sin(roll_prog * PI) * 4.0, 0, PI * 2.0, 16, Color(0.3, 0.95, 1.0, 0.85), 2.5)
+		return
+
 	# 蝙蝠侠角色矢量姿态与动作动画 (Batman Character Vector Animation)
 	var flip = 1.0 if facing_right else -1.0
 	var is_moving = abs(velocity.x) > 10.0
@@ -310,10 +329,33 @@ func _input(event):
 		shoot_batarang()
 		get_viewport().set_input_as_handled()
 	
+	# ⚡ 按 Shift 键 / S 键 / ↓ 键 触发战术翻滚闪避 (Dodge Roll)
+	if (event is InputEventKey and event.pressed and not event.echo and \
+	   (event.keycode == KEY_SHIFT or event.keycode == KEY_S or event.keycode == KEY_DOWN)):
+		start_dodge_roll()
+		get_viewport().set_input_as_handled()
+		
 	# 鼠标右键 近战劈砍 (Melee Slash) — 劈砍头顶的飞行敌人
 	if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT):
 		melee_attack()
 		get_viewport().set_input_as_handled()
+
+func start_dodge_roll():
+	"""⚡ 战术翻滚闪避：超高速战术冲刺翻滚，0.35s 内 100% 无敌避敌伤害"""
+	if is_dead or input_disabled or is_rolling or roll_cooldown_timer > 0:
+		return
+	is_rolling = true
+	roll_timer = ROLL_DURATION
+	roll_cooldown_timer = ROLL_COOLDOWN
+	roll_dir = 1.0 if facing_right else -1.0
+	invincible_timer = max(invincible_timer, ROLL_DURATION + 0.05) # 整个翻滚过程 100% 全程无敌！
+	
+	var parent_world = get_parent()
+	if parent_world and parent_world.has_method("_spawn_floating_text"):
+		parent_world._spawn_floating_text(position + Vector2(0, -35), "⚡ DODGE ROLL", Color(0.4, 0.95, 1.0))
+	if parent_world and parent_world.has_method("_spawn_particle_burst"):
+		parent_world._spawn_particle_burst(position + Vector2(0, 10), Color(0.4, 0.95, 1.0))
+	queue_redraw()
 
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
@@ -509,32 +551,47 @@ func _physics_process(delta):
 			is_melee_attacking = false
 			needs_redraw = true
 	
+	if roll_cooldown_timer > 0:
+		roll_cooldown_timer -= delta
+		
+	if is_rolling:
+		roll_timer -= delta
+		velocity.x = roll_dir * SPEED * 1.65 # 495 px/s 战术冲刺翻滚
+		invincible_timer = max(invincible_timer, roll_timer + 0.05)
+		needs_redraw = true
+		if roll_timer <= 0:
+			is_rolling = false
+			roll_timer = 0.0
+			needs_redraw = true
+
 	# 重力
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	
-	# 水平移动 (支持 A / D 键、← / → 键 与 Godot Action 轴)
+	# 水平移动 (翻滚期间强制锁定冲刺速度)
 	var dir = Input.get_axis("ui_left", "ui_right")
-	if dir == 0.0:
-		var left = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
-		var right = Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
-		if left and not right:
-			dir = -1.0
-		elif right and not left:
-			dir = 1.0
+	if not is_rolling:
+		if dir == 0.0:
+			var left = Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
+			var right = Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
+			if left and not right:
+				dir = -1.0
+			elif right and not left:
+				dir = 1.0
 
-	if dir != 0.0:
-		# 按住方向键逐渐加速奔跑 (Run Acceleration)
-		current_run_speed = min(current_run_speed + RUN_ACCEL * delta, MAX_RUN_SPEED)
-		velocity.x = dir * current_run_speed
-		var new_facing = dir > 0
-		if new_facing != facing_right:
-			facing_right = new_facing
-			needs_redraw = true
-	else:
-		# 松手立即重置为基准速度
-		current_run_speed = SPEED
-		velocity.x = move_toward(velocity.x, 0, SPEED * 8 * delta)
+	if not is_rolling:
+		if dir != 0.0:
+			# 按住方向键逐渐加速奔跑 (Run Acceleration)
+			current_run_speed = min(current_run_speed + RUN_ACCEL * delta, MAX_RUN_SPEED)
+			velocity.x = dir * current_run_speed
+			var new_facing = dir > 0
+			if new_facing != facing_right:
+				facing_right = new_facing
+				needs_redraw = true
+		else:
+			# 松手立即重置为基准速度
+			current_run_speed = SPEED
+			velocity.x = move_toward(velocity.x, 0, SPEED * 8 * delta)
 	
 	# 转向急停摩擦检测 (在地面快速变向 → 摩擦火花)
 	var current_dir_sign = sign(velocity.x)

@@ -17,6 +17,7 @@ var state = GameState.MENU
 var score = 0
 var high_score = 0
 var lives = 3
+var god_mode_enabled = false # 🛡️ 无敌调试模式 (生命无限，方便自主测验)
 var is_paused = false
 var boss_arena_locked = false
 var camera_fixed_boss_arena = false
@@ -589,14 +590,14 @@ func _create_menu():
 	style.shadow_size = 18
 	style.shadow_color = Color(0, 0, 0, 0.5)
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(306, 75)
-	panel.size = Vector2(540, 480)
+	panel.position = Vector2(306, 55)
+	panel.size = Vector2(540, 510)
 	panel.name = "MenuPanel"
 	add_child(panel)
 	
 	# 顶端标题 Header
 	var title_vbox = VBoxContainer.new()
-	title_vbox.position = Vector2(20, 22)
+	title_vbox.position = Vector2(20, 18)
 	title_vbox.size = Vector2(500, 95)
 	title_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	title_vbox.add_theme_constant_override("separation", 6)
@@ -625,14 +626,15 @@ func _create_menu():
 
 	# 垂直功能按钮组容器 (排版干净大气)
 	var btn_vbox = VBoxContainer.new()
-	btn_vbox.position = Vector2(70, 135)
-	btn_vbox.size = Vector2(400, 320)
-	btn_vbox.add_theme_constant_override("separation", 14)
+	btn_vbox.position = Vector2(70, 122)
+	btn_vbox.size = Vector2(400, 360)
+	btn_vbox.add_theme_constant_override("separation", 10)
 	panel.add_child(btn_vbox)
 	
 	var btn_configs = [
 		{"text": ">  开始出击 (Level 1 教学关)", "color": Color(1.0, 0.92, 0.3), "action": func(): _start_game()},
 		{"text": "≡  战役关卡选择 (Level 1 ~ 5)", "color": Color(0.9, 0.95, 1.0), "action": func(): _show_level_select_dialog()},
+		{"text": "🛡️ 无敌调试模式: %s" % ("【开启 - 生命无限】" if god_mode_enabled else "【关闭】"), "color": Color(0.3, 0.95, 1.0) if god_mode_enabled else Color(0.75, 0.82, 0.95), "god_btn": true, "action": func(): pass},
 		{"text": "♛  荣誉排行榜 (High Scores)", "color": Color(1.0, 0.8, 0.2), "action": func(): _show_high_score_dialog()},
 		{"text": "☰  操作指南 (Controls)", "color": Color(0.7, 0.85, 1.0), "action": func(): _show_controls_dialog()},
 		{"text": "✕  退出游戏 (Quit Game)", "color": Color(1.0, 0.45, 0.45), "action": func(): get_tree().quit()}
@@ -670,7 +672,16 @@ func _create_menu():
 		bhover.border_width_bottom = 2
 		bhover.border_color = Color(1.0, 0.85, 0.2, 0.9)
 		btn.add_theme_stylebox_override("hover", bhover)
-		btn.pressed.connect(bd["action"])
+		if bd.get("god_btn", false):
+			var b_ref = btn
+			btn.pressed.connect(func():
+				god_mode_enabled = not god_mode_enabled
+				b_ref.text = "🛡️ 无敌调试模式: %s" % ("【开启 - 生命无限】" if god_mode_enabled else "【关闭】")
+				b_ref.add_theme_color_override("font_color", Color(0.3, 0.95, 1.0) if god_mode_enabled else Color(0.75, 0.82, 0.95))
+				_update_lives_hud()
+			)
+		else:
+			btn.pressed.connect(bd["action"])
 		btn_vbox.add_child(btn)
 		
 	overlay = CanvasLayer.new()
@@ -1432,6 +1443,16 @@ func _update_lives_hud():
 	for child in hearts_box.get_children():
 		child.queue_free()
 		
+	if god_mode_enabled:
+		var god_label = Label.new()
+		god_label.text = "🛡️ ♾️ 无敌调试模式 (GOD MODE)"
+		god_label.add_theme_font_size_override("font_size", 16)
+		god_label.add_theme_color_override("font_color", Color(0.3, 0.95, 1.0))
+		god_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		god_label.add_theme_constant_override("outline_size", 3)
+		hearts_box.add_child(god_label)
+		return
+		
 	for i in range(3):
 		var heart_type = "heart_full" if i < lives else "heart_empty"
 		hearts_box.add_child(_create_pixel_icon(heart_type, Vector2(24, 24)))
@@ -1661,6 +1682,10 @@ func _on_enemy_stomped(enemy):
 		_spawn_particle_burst(enemy.position, Color(0.9, 0.2, 0.15))
 
 func _player_hurt(body):
+	if god_mode_enabled:
+		_spawn_floating_text(body.position, "🛡️ GOD MODE BLOCKED", Color(0.3, 0.95, 1.0))
+		return
+		
 	if body is Player:
 		if body.hit():
 			lives -= 1
