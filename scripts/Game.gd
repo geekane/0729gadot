@@ -606,7 +606,7 @@ func _create_menu():
 	get_tree().paused = false
 	blink_timer = 0.0
 	blink_visible = true
-	_play_bgm("res://bgm.mp3")
+	_play_bgm("res://assets/audio/bgm.mp3")
 	
 	var bg = ColorRect.new()
 	bg.color = Color(0.08, 0.1, 0.22, 1.0)
@@ -967,7 +967,7 @@ func _start_level(level_idx: int):
 	is_paused = false
 	boss_arena_locked = false
 	camera_fixed_boss_arena = false
-	_play_bgm("res://bgm.mp3")
+	_play_bgm("res://assets/audio/battle.mp3")
 	if get_tree():
 		get_tree().paused = false
 	blink_timer = 0.0
@@ -1202,7 +1202,7 @@ func _lock_boss_arena():
 	camera_fixed_boss_arena = true # 🔒 镜头平滑运镜居中至 Vector2(4520, 324)
 	
 	# 🎵 平滑切换至 Boss 决战热血 BGM (boss.mp3)
-	_play_bgm("res://boss.mp3", 0.6)
+	_play_bgm("res://assets/audio/boss.mp3", 0.6)
 	
 	if camera and is_instance_valid(camera):
 		camera.limit_left = 4040
@@ -1428,61 +1428,93 @@ func _update_lives_hud():
 # ─── 飘字得分特效 (Floating Text Effect) ───────────────
 
 func _spawn_floating_text(world_pos: Vector2, text: String, color: Color):
-	"""像素飘字：使用 TextureRect(图标) + Label(文字) 组合，已移除 emoji"""
+	"""像素/全中文蓝幕抠图艺术字飘字特效 (取消纯字符串 Label，全选抠图艺术字)"""
 	var container = Node2D.new()
-	container.position = world_pos + Vector2(-15, -25)
+	container.position = world_pos + Vector2(-20, -30)
 	add_child(container)
 	
-	# 根据文字内容添加对应像素图标
-	var icon_tex: Texture2D = null
-	var label_text = text
-	if text == "+1":
-		icon_tex = _get_effect_texture("spark_pixel")
-		label_text = "+1"
-	elif text == "+2":
-		icon_tex = _get_effect_texture("star_pixel")
-		label_text = "+2"
-	elif text.begins_with("-1"):
-		icon_tex = _get_effect_texture("heart_pixel")
-		label_text = "-1"
-	elif text.find("BOSS") != -1:
-		icon_tex = _create_pixel_icon("crown", Vector2(16, 16)).texture
-		label_text = text.replace(" 👑 ", " ")
+	var art_tex_path = ""
+	if text.find("-10") != -1 or text.find("CRIT") != -1:
+		art_tex_path = "res://assets/ui/hit_text_crit.png"
+	elif text.find("-1") != -1 or text.find("HIT") != -1:
+		art_tex_path = "res://assets/ui/hit_text_hit.png"
+	elif text.find("HURT") != -1 or text.find("受击") != -1:
+		art_tex_path = "res://assets/ui/hit_text_hurt.png"
+
+	if art_tex_path != "" and ResourceLoader.exists(art_tex_path):
+		var tex = load(art_tex_path)
+		var tr = TextureRect.new()
+		tr.texture = tex
+		var tw = 130.0
+		var th = 60.0
+		tr.size = Vector2(tw, th)
+		tr.position = Vector2(-tw / 2.0, -th / 2.0)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.pivot_offset = Vector2(tw / 2.0, th / 2.0)
+		container.add_child(tr)
+		
+		# 0.55s 向上浮动 + 1.25x 爆开缩放淡出 Tween
+		var tween = create_tween().set_parallel(true)
+		tween.tween_property(container, "position:y", container.position.y - 45.0, 0.55)
+		tween.tween_property(tr, "scale", Vector2(1.25, 1.25), 0.15).set_trans(Tween.TRANS_BACK)
+		tween.chain().tween_property(tr, "scale", Vector2(1.0, 1.0), 0.15)
+		tween.tween_property(tr, "modulate:a", 0.0, 0.55)
+		tween.chain().tween_callback(func(): _free_safe(container))
+	else:
+		# 常规得分飘字
+		var label = Label.new()
+		label.text = text
+		label.add_theme_font_size_override("font_size", 20)
+		label.add_theme_color_override("font_color", color)
+		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		label.add_theme_constant_override("outline_size", 3)
+		container.add_child(label)
+		
+		var tween = create_tween().set_parallel(true)
+		tween.tween_property(container, "position:y", container.position.y - 35.0, 0.6)
+		tween.tween_property(label, "modulate:a", 0.0, 0.6)
+		tween.chain().tween_callback(func(): _free_safe(container))
+
+func _spawn_execution_banner(world_pos: Vector2):
+	"""近战斩杀/击败 Boss 破空 Banner 跳出特效"""
+	_play_sound("enemy_hit")
+	add_camera_shake(12.0, 0.25)
 	
-	var icon_node: TextureRect = null
-	if icon_tex:
-		icon_node = TextureRect.new()
-		icon_node.texture = icon_tex
-		icon_node.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon_node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		icon_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon_node.size = Vector2(16, 16)
-		icon_node.position = Vector2(0, 2)
-		icon_node.modulate = color
-		container.add_child(icon_node)
+	var container = Node2D.new()
+	container.position = world_pos + Vector2(0, -50)
+	add_child(container)
 	
-	var label = Label.new()
-	label.text = label_text
-	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	label.add_theme_constant_override("outline_size", 3)
-	label.position = Vector2(18 if icon_tex else 0, 0)
-	container.add_child(label)
-	
-	var tween = create_tween().set_parallel(true)
-	tween.tween_property(container, "position:y", container.position.y - 35.0, 0.6)
-	tween.tween_property(label, "modulate:a", 0.0, 0.6)
-	if icon_node:
-		tween.tween_property(icon_node, "modulate:a", 0.0, 0.6)
-	tween.chain().tween_callback(func(): _free_safe(container))
+	var banner_path = "res://assets/ui/chinese_victory_logo.png"
+	if ResourceLoader.exists(banner_path):
+		var b_tex = load(banner_path)
+		var tr = TextureRect.new()
+		tr.texture = b_tex
+		var bw = 260.0
+		var bh = 85.0
+		tr.size = Vector2(bw, bh)
+		tr.position = Vector2(-bw / 2.0, -bh / 2.0)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.pivot_offset = Vector2(bw / 2.0, bh / 2.0)
+		container.add_child(tr)
+		
+		# 0.45 秒破空放大爆开闪烁淡出
+		var tween = create_tween().set_parallel(true)
+		tween.tween_property(tr, "scale", Vector2(1.4, 1.4), 0.12).set_trans(Tween.TRANS_BACK)
+		tween.chain().tween_property(tr, "scale", Vector2(1.0, 1.0), 0.15)
+		tween.tween_property(container, "position:y", container.position.y - 50.0, 0.45)
+		tween.tween_property(tr, "modulate:a", 0.0, 0.45)
+		tween.chain().tween_callback(func(): _free_safe(container))
 
 func _on_boss_defeated(boss_node):
 	"""小丑大 Boss 被击败后触发"""
 	score += 50
 	if score_label and is_instance_valid(score_label):
 		score_label.text = str(score)
-	_spawn_floating_text(boss_node.global_position, "+50 SPIDER-JOKER DEFEATED!", Color(1.0, 0.85, 0.2))
+	_spawn_execution_banner(boss_node.global_position)
 	_spawn_particle_burst(boss_node.global_position, Color(1.0, 0.85, 0.1))
 	_spawn_particle_burst(boss_node.global_position + Vector2(-30, -20), Color(0.9, 0.2, 0.9))
 	_spawn_particle_burst(boss_node.global_position + Vector2(30, -20), Color(0.2, 0.9, 0.9))

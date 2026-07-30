@@ -109,6 +109,56 @@ func awaken_and_pounce(target_pos: Vector2):
 		game._spawn_particle_burst(global_position, Color(1.0, 0.1, 0.1))
 		game._spawn_particle_burst(global_position, Color(0.9, 0.9, 0.1))
 
+var motion_blur_timer = 0.0
+
+func _spawn_speed_blur_ghost():
+	"""生成高级动态模糊运动残影 (Speed Motion Blur Ghost)"""
+	var parent_world = get_parent()
+	if not parent_world or not _anim_sprite:
+		return
+	var ghost = Sprite2D.new()
+	ghost.texture = _anim_sprite.sprite_frames.get_frame_texture(_anim_sprite.animation, _anim_sprite.frame)
+	ghost.global_position = global_position
+	ghost.scale = scale
+	ghost.flip_h = _anim_sprite.flip_h
+	ghost.modulate = Color(0.9, 0.15, 0.2, 0.55)
+	ghost.z_index = z_index - 1
+	parent_world.add_child(ghost)
+	
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(ghost, "modulate:a", 0.0, 0.22)
+	tween.tween_property(ghost, "scale", scale * 1.15, 0.22)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(ghost):
+			ghost.hide(); ghost.queue_free()
+	)
+
+func _spawn_ground_slam_cracks():
+	"""砸地裂痕与震波浪气浪特效"""
+	var parent_world = get_parent()
+	if not parent_world:
+		return
+	var crack = Node2D.new()
+	crack.global_position = Vector2(global_position.x, ground_y + 35.0)
+	parent_world.add_child(crack)
+	
+	crack.draw.connect(func():
+		for i in range(6):
+			var angle = randf_range(-PI * 0.8, -PI * 0.2)
+			var length = randf_range(40.0, 90.0)
+			var ep = Vector2(cos(angle), sin(angle)) * length
+			crack.draw_line(Vector2.ZERO, ep, Color(1.0, 0.2, 0.1, 0.85), 3.0)
+		crack.draw_circle(Vector2.ZERO, 35.0, Color(1.0, 0.85, 0.2, 0.4))
+	)
+	crack.queue_redraw()
+	
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(crack, "modulate:a", 0.0, 0.4)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(crack):
+			crack.hide(); crack.queue_free()
+	)
+
 func _physics_process(delta):
 	if not alive:
 		return
@@ -146,14 +196,20 @@ func _physics_process(delta):
 			jaw_open_amount = 0.5 + sin(anim_timer * 12.0) * 0.45
 
 		BossState.INITIAL_POUNCE:
-			# 醒来突袭飞扑状态：直扑蝙蝠侠
+			# 醒来突袭飞扑状态：直扑蝙蝠侠 (附带高速运动模糊)
 			jaw_open_amount = 1.0
 			position += velocity * delta
 			velocity.y += 980.0 * delta
 			position.x = clamp(position.x, arena_min_x, arena_max_x)
 			
+			motion_blur_timer += delta
+			if motion_blur_timer >= 0.04:
+				motion_blur_timer = 0.0
+				_spawn_speed_blur_ghost()
+			
 			if position.y >= ground_y:
 				position.y = ground_y
+				_spawn_ground_slam_cracks()
 				# 着地重伤眩晕，暴露弱点破防
 				_enter_stunned_state()
 

@@ -1538,6 +1538,33 @@ func trigger_hit_stop(duration: float = 0.05):
 
 ---
 
+### 12.27 3 轨 Audio 音频架构、Boss 动态模糊视觉与蓝幕抠图全中文战斗艺术字基准 (Audio & Combat Matting Art Standard)
+
+> [!IMPORTANT]
+> 本章节记录实战总结出的 **音频资源归整、3 轨 BGM 音轨分工、Boss 动态模糊残影与全中文蓝幕抠图伤害/斩杀艺术字标准**。
+
+#### 1. 音频资源归整与 3 轨 BGM 路由 (`assets/audio/`)
+- **存储目录**：所有音频统归整理入库至 `assets/audio/`。
+- **音轨分工**：
+  - `res://assets/audio/bgm.mp3`：主菜单与关卡结算通用音轨。
+  - `res://assets/audio/battle.mp3`：贯穿全关卡 (Level 1 ~ 5) 全程的激昂战斗 BGM。
+  - `res://assets/audio/boss.mp3`：Level 5 小丑 Boss 终极决战 BGM。
+
+#### 2. Boss 动态模糊残影与砸地震撼视觉 (`Boss.gd`)
+- **运动动态模糊 (Speed Motion Blur)**：Boss 在飞扑/冲刺突进时，每 0.04 秒喷射生成半透明带透明度衰减与拉伸的动态模糊副本 `_spawn_speed_blur_ghost()`。
+- **砸地裂痕与强震屏冲击波**：砸地着地瞬间触发 `_spawn_ground_slam_cracks()`，生成地表暗红几何裂缝与能量冲击射线。
+
+#### 3. 彻底淘汰纯文本！蓝幕抠图全中文战斗艺术字与斩杀 Banner (`Game.gd`, `slice_combat_ui.py`)
+- **蓝幕抠图伤害艺术字**：
+  - 重创 10 点伤害：实例化 `assets/ui/hit_text_crit.png`（**“重创 -10”**），配以 1.25x 爆开缩放淡出 Tween！
+  - 命中 1 点伤害：实例化 `assets/ui/hit_text_hit.png`（**“命中 -1”**）。
+  - 玩家受击：实例化 `assets/ui/hit_text_hurt.png`（**“受击 -1”**）。
+- **近战斩杀/击败 Boss 破空 Banner**：
+  - 触发 `_spawn_execution_banner()`：在斩杀受击位置瞬间破空跳出 `chinese_victory_logo.png`！配以 0.08 秒卡肉停顿 (Hit-Stop)、0.25 秒强镜头震屏与 1.4x 放大爆开淡出 Tween，带来极致爽快的游戏打击感 (Game Feel)！
+
+---
+
+
 
 
 
